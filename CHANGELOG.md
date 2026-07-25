@@ -2,6 +2,26 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-07-26 — Landing page rework, Font Awesome icons, guest-list bug fix
+
+- Removed the logo/"Get Started" splash screen entirely — "How do you want to continue?" is now the landing page, with its old "Next" eyebrow label and back button replaced by a plain "Settlr" label (nowhere to go back to anymore).
+- Added a small persistent Settlr mark centered at the top of every screen (between Back, when present, and the light/dark toggle), implemented once at the shared nav-row level rather than duplicated per screen.
+- Replaced every icon in the app (nav arrows, chevrons, category icons, plus/pen/trash, OAuth brand marks, theme toggle, etc.) with Font Awesome, loaded via CDN — the Settlr "$" brand mark is the only icon that's still custom.
+- Create Trip / Create Bill Split now default to SGD instead of USD, and no longer pre-fill a sample trip/bill name or sample mates (Alex/Jordan/Priya) — both forms open empty and reset properly every time you navigate to them.
+- Fixed a bug where a brand-new guest trip never got saved to this device's local list (bill creation already saved correctly; trip creation was missing the equivalent call), so it never showed up under "Your Trips on This Device" despite existing fine in Supabase.
+- Renamed guest mode's "Your Bills" section to "Your Bills on This Device", matching the naming and empty-state phrasing of "Your Trips on This Device" above it.
+- Added a bill-link info button to the Bill Split dashboard (mirroring the trip dashboard's info button), opening a new Bill Link screen with the shareable link and copy button.
+- "Your Trips" and "Your Bills" on the account home screen no longer scroll independently in their own small boxes — both lists show everything, and the whole page scrolls instead.
+- Backed up the pre-change app to `260726-v02` before making any of the above edits.
+
+## 2026-07-26 — Google/Microsoft sign-in, forgot password, real website layout
+
+- Wired the "Continue with Google" and "Continue with Microsoft" buttons to `sb.auth.signInWithOAuth`, reusing the existing session-restore logic (supabase-js parses the OAuth callback automatically on page load — no separate handling needed).
+- Added a "Forgot your password?" link on the Sign In tab, wired to `sb.auth.resetPasswordForEmail`, plus a recovery-session handler that prompts for a new password and calls `sb.auth.updateUser` when the reset link is followed back into the app.
+- Removed the phone-mockup chrome (fixed-size device border, rounded bezel, fake 9:41/signal/battery status bar) — the app now renders as a normal responsive website, capped at a comfortable reading width rather than floating as a fake phone frame on the page.
+- Moved the app from `prototypes/settlr-onboarding-prototype.html` to `index.html` at the repo root, so GitHub Pages serves it directly at the site's base URL instead of falling back to a rendered README.
+- Introduced a dated-backup convention (`YYMMDD-vNN` subfolders) — a snapshot of the app is taken before each editing session going forward, starting with `260726-v01`.
+
 ## 2026-07-25 — Real accounts (Supabase Auth)
 
 - Wired real email/password sign-up, sign-in, and sign-out via Supabase Auth, replacing the old fake `window.isAuthenticated = true` toggle. Sessions persist across reloads (restored automatically on load) and stay in sync via `onAuthStateChange`.

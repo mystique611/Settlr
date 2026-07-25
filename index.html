@@ -1,11 +1,4537 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta http-equiv="refresh" content="0; url=/Settlr/prototypes/settlr-onboarding-prototype.html">
-  <title>Settlr</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settlr — Onboarding Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 10px;
+    --ease: cubic-bezier(.4,0,.2,1);
+  }
+
+  /* ---- Light theme ---- */
+  [data-theme="light"] {
+    --bg: #F5F6F8;
+    --bg-elevated: #FFFFFF;
+    --card: #FFFFFF;
+    --card-border: rgba(15, 20, 30, 0.08);
+    --text-primary: #12151C;
+    --text-secondary: #5B6270;
+    --text-tertiary: #9198A6;
+    --accent: #2F6FED;
+    --accent-hover: #2A61D1;
+    --accent-soft: rgba(47, 111, 237, 0.10);
+    --success: #17A673;
+    --success-soft: rgba(23, 166, 115, 0.10);
+    --amber: #C9820A;
+    --amber-soft: rgba(201, 130, 10, 0.10);
+    --divider: rgba(15, 20, 30, 0.08);
+    --shadow: 0 1px 2px rgba(16,20,30,0.04), 0 8px 24px rgba(16,20,30,0.06);
+    --input-bg: #F7F8FA;
+    --overlay-scrim: rgba(10, 12, 18, 0.35);
+  }
+
+  /* ---- Dark theme (Flighty-inspired) ---- */
+  [data-theme="dark"] {
+    --bg: #0B0E14;
+    --bg-elevated: #10141C;
+    --card: #141922;
+    --card-border: rgba(255, 255, 255, 0.07);
+    --text-primary: #F3F5F8;
+    --text-secondary: #9BA3B2;
+    --text-tertiary: #6B7280;
+    --accent: #4C8DFF;
+    --accent-hover: #6BA0FF;
+    --accent-soft: rgba(76, 141, 255, 0.14);
+    --success: #2FD498;
+    --success-soft: rgba(47, 212, 152, 0.12);
+    --amber: #F0A93B;
+    --amber-soft: rgba(240, 169, 59, 0.12);
+    --divider: rgba(255, 255, 255, 0.08);
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px rgba(0,0,0,0.45);
+    --input-bg: #0E1219;
+    --overlay-scrim: rgba(0, 0, 0, 0.55);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background 0.3s var(--ease), color 0.3s var(--ease);
+  }
+
+  /* Was a centered "phone mockup" frame (fixed 400x830 device with a
+     bezel border + fake status bar). Now a normal responsive page:
+     full-height, capped to a comfortable reading width since every
+     screen was designed mobile-first, but no device chrome, no
+     border, no fake clock/signal/battery. */
+  .phone-frame-wrap {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    background: var(--bg);
+  }
+
+  .device {
+    width: 100%;
+    max-width: 480px;
+    min-height: 100vh;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Sits at the top of the page, vertically centered on the same
+     band every screen's .nav-row occupies (8px screen padding),
+     right-aligned to match the 26px screen padding — so it always
+     reads as "same row as Back, right side" no matter which screen
+     is active, without having to duplicate the toggle markup into
+     every screen. */
+  .theme-toggle {
+    position: absolute;
+    top: 12px;
+    right: 26px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    z-index: 20;
+  }
+
+  .toggle-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--card-border);
+    background: var(--card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-primary);
+    box-shadow: var(--shadow);
+    transition: transform 0.15s var(--ease);
+  }
+  .toggle-btn:hover { transform: scale(1.06); }
+  .toggle-btn i { font-size: 15px; }
+  .toggle-label {
+    font-size: 9px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .screens {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 26px 26px;
+    opacity: 0;
+    transform: translateX(24px);
+    pointer-events: none;
+    transition: opacity 0.32s var(--ease), transform 0.32s var(--ease);
+    overflow-y: auto;
+  }
+  .screen.active {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  .screen.exit-left {
+    transform: translateX(-24px);
+  }
+
+  .screen::-webkit-scrollbar { width: 0; }
+
+  /* ---- Nav / back ---- */
+  .nav-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 40px;
+    margin-bottom: 4px;
+  }
+
+  /* Small Settlr mark, centered in the same row as Back (when present)
+     and always vertically matching the theme toggle on the right —
+     present on every screen via the nav-row wrapper, whether or not
+     that screen also has a Back button. */
+  .brand-center-mark {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #7CB0FF);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 10px var(--accent-soft);
+    pointer-events: none;
+  }
+  .back-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 6px 4px;
+  }
+  .back-btn:hover { color: var(--text-primary); }
+  .back-btn i { font-size: 16px; }
+
+  /* ---- Brand ---- */
+  .brand-mark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), #7CB0FF);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 14px var(--accent-soft);
+  }
+  .brand-name {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  /* ---- Buttons ---- */
+  .btn {
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    padding: 15px 20px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: transform 0.12s var(--ease), background 0.2s var(--ease), opacity .2s var(--ease);
+    width: 100%;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary {
+    background: var(--card);
+    color: var(--text-primary);
+    border: 1px solid var(--card-border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 500;
+    padding: 10px;
+  }
+  .btn-ghost:hover { color: var(--text-primary); }
+  .btn-sm { padding: 10px 14px; font-size: 14px; width: auto; }
+  .btn-danger { background: #E5484D; color: #fff; }
+  .btn-danger:hover { background: #cf3f44; }
+
+  /* ---- Confirm dialog (delete trip/bill, etc.) ---- */
+  .confirm-overlay {
+    position: absolute; inset: 0; z-index: 60;
+    background: var(--overlay-scrim);
+    display: none; align-items: center; justify-content: center;
+    padding: 0 24px;
+  }
+  .confirm-box {
+    width: 100%; max-width: 320px;
+    background: var(--card); border: 1.5px solid var(--card-border);
+    border-radius: var(--radius-md); padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .confirm-title { font-size: 16px; font-weight: 700; margin: 0 0 6px; }
+  .confirm-desc { font-size: 13.5px; color: var(--text-secondary); margin: 0 0 18px; line-height: 1.45; }
+  .confirm-actions { display: flex; gap: 10px; }
+  .card-delete-btn { flex-shrink: 0; margin-left: 4px; }
+
+  /* ---- Header block ---- */
+  .header-block { margin: 18px 0 24px; }
+  .header-eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin: 0 0 8px;
+  }
+  .header-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px;
+    line-height: 1.2;
+  }
+  .header-desc {
+    font-size: 14.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  /* ---- Option cards (mode select) ---- */
+  .option-card {
+    background: var(--card);
+    border: 1.5px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s var(--ease), transform 0.12s var(--ease);
+    text-align: left;
+  }
+  .option-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  .option-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .option-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .option-icon.blue { background: var(--accent-soft); color: var(--accent); }
+  .option-icon.green { background: var(--success-soft); color: var(--success); }
+  .chevron { color: var(--text-tertiary); font-size: 15px; flex-shrink: 0; }
+  .option-title {
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  .option-desc {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0 0 10px;
+  }
+  .option-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 9px;
+    border-radius: 100px;
+  }
+  .tag.pos { background: var(--success-soft); color: var(--success); }
+  .tag.neu { background: var(--input-bg); color: var(--text-secondary); border: 1px solid var(--card-border); }
+
+  /* ---- Guest sub-choices ---- */
+  .row-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card);
+    border: 1.5px solid var(--card-border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: border-color 0.2s var(--ease);
+  }
+  .row-card:hover { border-color: var(--accent); }
+  .row-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .row-text-title { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+  .row-text-sub { font-size: 12.5px; color: var(--text-secondary); margin: 0; }
+
+  .divider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .divider-row::before, .divider-row::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--divider);
+  }
+
+  /* ---- Form elements ---- */
+  .field { margin-bottom: 16px; }
+  .field-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 7px;
+  }
+  .field-input {
+    width: 100%;
+    padding: 13px 14px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--card-border);
+    background: var(--input-bg);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s var(--ease);
+  }
+  .field-input:focus { border-color: var(--accent); }
+  .field-input::placeholder { color: var(--text-tertiary); }
+
+  .link-paste-row {
+    display: flex;
+    gap: 8px;
+  }
+  .link-paste-row .field-input { flex: 1; }
+
+  /* ---- Auth tabs ---- */
+  .tab-switch {
+    display: flex;
+    background: var(--input-bg);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    margin-bottom: 22px;
+    border: 1px solid var(--card-border);
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 9px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s var(--ease);
+  }
+  .tab-btn.active {
+    background: var(--card);
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .oauth-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 13px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--card-border);
+    background: var(--card);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: border-color 0.2s var(--ease);
+  }
+  .oauth-btn:hover { border-color: var(--text-tertiary); }
+  .oauth-btn i { font-size: 18px; }
+
+  .helper-text {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 18px;
+  }
+  .helper-text a, .link-inline {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  /* ---- Chips (currencies / mates) ---- */
+  .chip-input-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--card-border);
+    background: var(--input-bg);
+  }
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 8px 6px 12px;
+    border-radius: 100px;
+  }
+  .chip-x {
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    opacity: 0.7;
+  }
+  .chip-x:hover { opacity: 1; }
+  .chip-add-input {
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    flex: 1;
+    min-width: 90px;
+    padding: 6px 4px;
+  }
+
+  .mate-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .mate-avatar {
+    width: 27px; height: 27px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10.5px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .mate-row .field-input { flex: 1; padding: 10px 12px; font-size: 14px; }
+  .mate-remove {
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .mate-remove:hover { color: #E5484D; background: rgba(229,72,77,0.1); }
+
+  .add-mate-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 14px;
+    background: none;
+    border: 1.5px dashed var(--card-border);
+    border-radius: var(--radius-sm);
+    padding: 11px;
+    width: 100%;
+    cursor: pointer;
+    justify-content: center;
+    margin-top: 2px;
+  }
+  .add-mate-btn:hover { border-color: var(--accent); }
+
+  /* ---- Banner ---- */
+  .banner {
+    display: flex;
+    gap: 10px;
+    background: var(--amber-soft);
+    border: 1px solid rgba(240,169,59,0.25);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    font-size: 12.5px;
+    color: var(--text-primary);
+    line-height: 1.5;
+  }
+  .banner i { color: var(--amber); font-size: 17px; flex-shrink: 0; margin-top: 1px; }
+  .banner b { font-weight: 700; }
+
+  .spacer { flex: 1; }
+  .bottom-actions { padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* ---- Share links screen ---- */
+  .success-icon {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: var(--success-soft);
+    color: var(--success);
+    display: flex; align-items: center; justify-content: center;
+    margin: 6px auto 18px;
+  }
+  .link-card {
+    background: var(--card);
+    border: 1.5px solid var(--card-border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .link-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .link-card-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 700;
+  }
+  .link-card-label.edit { color: var(--accent); }
+  .link-card-label.view { color: var(--text-secondary); }
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    background: var(--input-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+  }
+  .copy-btn.copied { color: var(--success); border-color: var(--success); background: var(--success-soft); }
+  .link-url {
+    font-family: 'SFMono-Regular', Menlo, monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--input-bg);
+    padding: 8px 10px;
+    border-radius: 7px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .center-text { text-align: center; }
+
+  /* Screen dots indicator */
+  .step-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 4px 0 18px;
+  }
+  .step-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--divider);
+  }
+  .step-dot.on { background: var(--accent); width: 16px; border-radius: 3px; }
+
+  @media (max-width: 460px) {
+    .device { width: 100%; max-width: 400px; height: 92vh; border-width: 0; border-radius: 28px; }
+  }
+
+  /* ---- Dashboard (preview) ---- */
+  .dash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 14px 0 20px;
+  }
+  .dash-trip-row { display: flex; align-items: center; gap: 12px; }
+  .dash-trip-icon {
+    width: 44px; height: 44px; border-radius: 13px;
+    background: linear-gradient(135deg, var(--accent), #8FC0FF 70%);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 18px;
+    flex-shrink: 0;
+  }
+  .dash-trip-name { font-size: 18px; font-weight: 800; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .dash-trip-sub { font-size: 12.5px; color: var(--text-secondary); margin: 0; }
+
+  .dash-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .icon-btn {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    border: 1px solid var(--card-border);
+    background: var(--card);
+    color: var(--text-secondary);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: border-color 0.2s var(--ease), color 0.2s var(--ease);
+  }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .balance-card {
+    background: var(--card);
+    border: 1.5px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 22px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .balance-label { font-size: 12.5px; color: var(--text-secondary); font-weight: 600; margin: 0 0 6px; }
+  .balance-amount { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 6px; }
+  .balance-amount.pos { color: var(--success); }
+  .balance-amount.neg { color: #E5484D; }
+  .balance-sub { font-size: 12.5px; color: var(--text-tertiary); margin: 0; }
+
+  .mates-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 24px;
+  }
+  .mate-chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 100px;
+    padding: 5px 10px 5px 5px;
+    flex-shrink: 0;
+  }
+  .mate-chip .mate-avatar { width: 19px; height: 19px; font-size: 9px; }
+  .mate-chip span { font-size: 10px; font-weight: 600; }
+
+  /* ---- Currency chips (Create Trip) — same widget language as the
+     trip mate chips on the dashboard, just with a code badge instead
+     of an avatar circle ---- */
+  .currency-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .currency-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 100px;
+    padding: 5px 8px 5px 5px;
+    flex-shrink: 0;
+  }
+  .currency-badge {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 100px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+  .currency-chip .currency-name { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+  .currency-chip .chip-x { width: 14px; height: 14px; font-size: 11px; }
+
+  .section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .section-title { font-size: 15px; font-weight: 700; margin: 0; }
+  .section-link { font-size: 12.5px; font-weight: 600; color: var(--accent); }
+
+  .expense-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--divider);
+  }
+  .expense-item:last-of-type { border-bottom: none; }
+  .expense-icon {
+    width: 40px; height: 40px; border-radius: 11px;
+    background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 15px;
+  }
+  .expense-title { font-size: 14.5px; font-weight: 600; margin: 0 0 2px; }
+  .expense-sub { font-size: 12px; color: var(--text-secondary); margin: 0; }
+  .expense-amount { font-size: 14.5px; font-weight: 700; text-align: right; white-space: nowrap; }
+  .expense-amount-sub { font-size: 11px; color: var(--text-tertiary); text-align: right; }
+
+  .dash-scroll {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  .dash-scroll::-webkit-scrollbar { width: 0; }
+
+  .quick-actions-row { display: flex; gap: 10px; margin: 20px 0 4px; }
+
+  .fab-add {
+    flex-shrink: 0;
+    margin-top: 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 15px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 24px var(--accent-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: opacity 0.2s var(--ease), transform 0.12s var(--ease);
+  }
+  .fab-add:active { transform: scale(0.98); }
+  .fab-add.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .link-permission-hint {
+    font-size: 12.5px;
+    margin: 8px 2px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+  }
+  .link-permission-hint.edit { color: var(--accent); }
+  .link-permission-hint.view { color: var(--amber); }
+  .link-permission-hint.neutral { color: var(--text-tertiary); font-weight: 500; }
+
+  /* ---- Account home: Your Trips list ---- */
+  .trips-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 6px;
+  }
+
+  /* Account home's "Your Trips" and "Your Bills" sit one after another
+     on the same page rather than splitting the screen's height between
+     them — each list should show every item and let the whole screen
+     scroll (via .screen's own overflow-y), not scroll independently
+     inside its own small box. */
+  [data-screen="accounthome"] .trips-list {
+    flex: none;
+    overflow-y: visible;
+  }
+  .trips-list::-webkit-scrollbar { width: 0; }
+  .trip-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--card);
+    border: 1.5px solid var(--card-border);
+    border-radius: var(--radius-md);
+    padding: 13px 14px;
+    cursor: pointer;
+    transition: border-color 0.2s var(--ease);
+    flex-shrink: 0;
+  }
+  .trip-card:hover { border-color: var(--accent); }
+  .trip-card-icon {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), #8FC0FF 70%);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 14px;
+  }
+  .trip-card-name { font-size: 14.5px; font-weight: 700; margin: 0 0 2px; }
+  .trip-card-sub { font-size: 12px; color: var(--text-secondary); margin: 0; }
+  .trip-card-balance { font-size: 12.5px; font-weight: 700; text-align: right; white-space: nowrap; flex-shrink: 0; }
+  .trip-card-balance.pos { color: var(--success); }
+  .trip-card-balance.neg { color: #E5484D; }
+  .trip-card-balance.neutral { color: var(--text-tertiary); font-weight: 600; }
+
+  .guest-trips-empty {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    text-align: center;
+    padding: 24px 12px;
+    margin: 0;
+  }
+
+  /* Account Mode carries the same green accent as the
+     "Sign In / Create Account" card that leads to it. */
+  [data-screen="accounthome"] .header-eyebrow { color: var(--success); }
+  [data-screen="accounthome"] .row-icon { background: var(--success-soft); color: var(--success); }
+  [data-screen="accounthome"] .row-card:hover { border-color: var(--success); }
+
+  /* ---- Add Expense: category picker ---- */
+  .category-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .category-chip {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 12px 6px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--card-border);
+    background: var(--card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    transition: border-color 0.2s var(--ease), color 0.2s var(--ease);
+  }
+  .category-chip i { font-size: 16px; }
+  .category-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+  /* ---- Add Expense: split editor ---- */
+  .split-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    border-radius: var(--radius-sm);
+    border: 1.5px dashed transparent;
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease), background 0.15s var(--ease), opacity 0.15s var(--ease);
+  }
+  .split-row.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .split-row:not(.selected) { opacity: 0.5; }
+  .split-row .mate-avatar { width: 24px; height: 24px; font-size: 9.5px; flex-shrink: 0; }
+  .split-name { flex: 1; font-size: 14px; font-weight: 600; }
+  .split-value { font-size: 14px; font-weight: 700; color: var(--text-secondary); }
+  .split-input {
+    width: 72px; padding: 8px 10px; border-radius: 8px;
+    border: 1.5px solid var(--card-border);
+    background: var(--input-bg); color: var(--text-primary);
+    font-family: inherit; font-size: 14px; text-align: right;
+  }
+  .split-unit { font-size: 13px; color: var(--text-tertiary); width: 12px; }
+  .split-computed { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); min-width: 56px; text-align: right; }
+  /* Split inputs are free-text (no native number spinner) so people can
+     type a value directly instead of clicking increment/decrement arrows. */
+  .split-input::-webkit-outer-spin-button, .split-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .split-input { -moz-appearance: textfield; }
+  .split-hint { font-size: 12px; margin: 8px 2px 0; color: var(--text-tertiary); }
+  .split-hint.ok { color: var(--success); font-weight: 600; }
+  .split-hint.warn { color: var(--amber); font-weight: 600; }
+  .receipt-locked-note { font-size: 12px; color: var(--amber); margin: 8px 2px 0; }
+
+  /* ---- Settle Up ---- */
+  .settle-card {
+    background: var(--card);
+    border: 1.5px solid var(--card-border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .settle-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .settle-who { font-size: 13.5px; color: var(--text-secondary); margin: 0; }
+  .settle-who b { color: var(--text-primary); font-weight: 700; }
+  .settle-amount { font-size: 17px; font-weight: 800; margin: 0; }
+  .settle-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .settle-partial-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .settle-partial-row .field-input { padding: 10px 12px; font-size: 14px; }
+
+  /* ---- Stats ---- */
+  .stat-row { margin-bottom: 14px; }
+  .stat-row-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .stat-row-label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+  .stat-row-label i { width: 16px; text-align: center; }
+  .stat-row-amount { font-size: 13px; font-weight: 700; color: var(--text-secondary); }
+  .stat-bar-track { height: 8px; border-radius: 4px; background: var(--input-bg); overflow: hidden; }
+  .stat-bar-fill { height: 100%; border-radius: 4px; }
+</style>
 </head>
-<body>
-  <p>Redirecting to <a href="/Settlr/prototypes/settlr-onboarding-prototype.html">Settlr</a>...</p>
+<body data-theme="dark">
+<div class="phone-frame-wrap">
+  <div class="device" id="device">
+
+    <div class="theme-toggle">
+      <button class="toggle-btn" id="themeBtn" title="Toggle theme"></button>
+      <span class="toggle-label" id="themeLabel">DARK</span>
+    </div>
+
+    <div class="screens" id="screens">
+
+      <!-- SCREEN 2: Mode selection (now the landing page) -->
+      <section class="screen active" data-screen="mode">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:'Inter',-apple-system,sans-serif;">$</span></div></div>
+        <div class="header-block">
+          <p class="header-eyebrow">Settlr</p>
+          <h2 class="header-title">How do you want to continue?</h2>
+          <p class="header-desc">You can always create an account later — nothing you do as a guest is lost.</p>
+        </div>
+
+        <button class="option-card" onclick="window.isAuthenticated=false; go('guest')" style="border:none; background:none; padding:0; width:100%; color:inherit; text-align:left; font:inherit;">
+          <div class="option-card" style="margin-bottom:14px;">
+            <div class="option-card-top">
+              <div class="option-icon blue">
+                <i class="fa-solid fa-user" style="font-size:20px;"></i>
+              </div>
+              <i class="fa-solid fa-chevron-right chevron"></i>
+            </div>
+            <p class="option-title">Continue as Guest</p>
+            <p class="option-desc">Start splitting in seconds. Get a shareable link for your trip — no sign up needed.</p>
+            <div class="option-tags">
+              <span class="tag pos">No account needed</span>
+              <span class="tag neu">Receipts unavailable</span>
+            </div>
+          </div>
+        </button>
+
+        <button onclick="go('auth')" style="border:none; background:none; padding:0; width:100%; color:inherit; text-align:left; font:inherit;">
+          <div class="option-card" style="margin-bottom:0;">
+            <div class="option-card-top">
+              <div class="option-icon green">
+                <i class="fa-solid fa-shield-halved" style="font-size:20px;"></i>
+              </div>
+              <i class="fa-solid fa-chevron-right chevron"></i>
+            </div>
+            <p class="option-title">Sign In / Create Account</p>
+            <p class="option-desc">Save every trip in one place, keep receipt photos, and set trip mate favorites.</p>
+            <div class="option-tags">
+              <span class="tag pos">Save receipt photos</span>
+              <span class="tag pos">Synced trip history</span>
+            </div>
+          </div>
+        </button>
+
+        <div class="spacer"></div>
+      </section>
+
+      <!-- SCREEN 3: Guest choice -->
+      <section class="screen" data-screen="guest">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('mode')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 14px 0 16px;">
+          <p class="header-eyebrow">Guest Mode</p>
+          <h2 class="header-title">Start or join a trip</h2>
+        </div>
+
+        <div class="row-card" onclick="go('createtrip')" style="margin-bottom:10px;">
+          <div class="row-icon">
+            <i class="fa-solid fa-plus" style="font-size:18px;"></i>
+          </div>
+          <div style="flex:1;">
+            <p class="row-text-title">Start a New Trip</p>
+            <p class="row-text-sub">Name your trip and add who's coming</p>
+          </div>
+          <i class="fa-solid fa-chevron-right chevron"></i>
+        </div>
+
+        <div class="row-card" onclick="go('joinlink')" style="margin-bottom:10px;">
+          <div class="row-icon">
+            <i class="fa-solid fa-link" style="font-size:18px;"></i>
+          </div>
+          <div style="flex:1;">
+            <p class="row-text-title">Join Existing Trip</p>
+            <p class="row-text-sub">Paste a link someone shared with you</p>
+          </div>
+          <i class="fa-solid fa-chevron-right chevron"></i>
+        </div>
+
+        <div class="row-card" onclick="go('billsplitcreate')" style="margin-bottom:0;">
+          <div class="row-icon">
+            <i class="fa-solid fa-receipt" style="font-size:18px;"></i>
+          </div>
+          <div style="flex:1;">
+            <p class="row-text-title">Split a Bill</p>
+            <p class="row-text-sub">Divide a single receipt</p>
+          </div>
+          <i class="fa-solid fa-chevron-right chevron"></i>
+        </div>
+
+        <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:18px;">
+          <p class="section-title">Your Trips on This Device</p>
+        </div>
+        <p class="header-desc" style="margin: -6px 0 12px;">Stored locally in this browser — sign in anytime to save them to an account instead.</p>
+
+        <div class="trips-list" id="guestTripsList">
+          <p class="guest-trips-empty" id="guestTripsEmpty">No trips on this device yet — start or join one above.</p>
+        </div>
+
+        <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:18px;">
+          <p class="section-title">Your Bills on This Device</p>
+        </div>
+        <p class="header-desc" style="margin: -6px 0 12px;">Stored locally in this browser — sign in anytime to save them to an account instead.</p>
+
+        <div class="trips-list" id="guestBillsList">
+          <p class="guest-trips-empty" id="guestBillsEmpty">No bill splits on this device yet — start one above.</p>
+        </div>
+      </section>
+
+      <!-- SCREEN 4: Join via link -->
+      <section class="screen" data-screen="joinlink">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block">
+          <p class="header-eyebrow">Join a Trip</p>
+          <h2 class="header-title">Paste your trip link</h2>
+          <p class="header-desc">Ask a trip mate for the link they received when the trip was created.</p>
+        </div>
+        <div class="field">
+          <label class="field-label">Trip link</label>
+          <input class="field-input" id="joinLinkInput" type="text" placeholder="settlr.app/t/8f2a-91cb" value="settlr.app/t/8f2a-91cb">
+        </div>
+        <button class="btn btn-primary" onclick="joinTripFromLink()">Continue</button>
+        <p class="helper-text" id="joinSigninHelper">Signed in already? <a onclick="go('auth')">Sign in</a> to save this trip to your account.</p>
+      </section>
+
+      <!-- SCREEN 5: Auth -->
+      <section class="screen" data-screen="auth">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('mode')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin-top:6px;">
+          <h2 class="header-title" id="authTitle">Welcome back</h2>
+          <p class="header-desc" id="authDesc">Sign in to access your trips, favorites, and saved receipts.</p>
+        </div>
+
+        <div class="tab-switch">
+          <button class="tab-btn active" id="tabSignIn" onclick="setAuthTab('signin')">Sign In</button>
+          <button class="tab-btn" id="tabCreate" onclick="setAuthTab('create')">Create Account</button>
+        </div>
+
+        <button class="oauth-btn" id="oauthGoogleBtn" onclick="signInWithOAuthProvider('google')">
+          <i class="fa-brands fa-google" style="font-size:20px;"></i>
+          Continue with Google
+        </button>
+        <button class="oauth-btn" id="oauthMicrosoftBtn" onclick="signInWithOAuthProvider('azure')">
+          <i class="fa-brands fa-microsoft" style="font-size:20px;"></i>
+          Continue with Microsoft
+        </button>
+
+        <div class="divider-row">OR</div>
+
+        <div class="field">
+          <label class="field-label">Email</label>
+          <input class="field-input" type="email" id="authEmailInput" placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label class="field-label">Password</label>
+          <input class="field-input" type="password" id="authPasswordInput" placeholder="Enter your password">
+        </div>
+
+        <button class="btn btn-primary" id="authSubmit" onclick="submitAuthForm()">Sign In</button>
+        <p class="helper-text" id="forgotPasswordRow"><a onclick="forgotPassword()">Forgot your password?</a></p>
+        <p class="helper-text">Just browsing? <a onclick="window.isAuthenticated=false; go('guest')">Continue as Guest</a></p>
+      </section>
+
+      <!-- SCREEN 6: Create trip -->
+      <section class="screen" data-screen="createtrip">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+
+        <div class="header-block" style="margin-top:2px; margin-bottom:16px;">
+          <h2 class="header-title" id="createTripTitle">Create your trip</h2>
+          <p class="header-desc" id="createTripDesc" style="display:none;">Rename the trip, edit trip mates and currencies.</p>
+        </div>
+
+        <div class="banner" id="guestBanner">
+          <i class="fa-solid fa-triangle-exclamation" style="font-size:18px;"></i>
+          <div><b>Guest trip.</b> You'll get a shareable link. Sign in anytime to save this trip permanently and keep receipt photos synced.</div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Trip name</label>
+          <input class="field-input" id="tripNameInput" type="text" placeholder="e.g. Bali with the crew">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Currency</label>
+          <select class="field-input" id="tripCurrencySelect" style="padding:13px 14px;" onchange="addTripCurrencyChip()"></select>
+          <div class="currency-chip-row" id="tripCurrencyChips"></div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Default currency</label>
+          <p class="header-desc" style="margin:-4px 0 10px;">Used by default for adding expenses and settling up.</p>
+          <select class="field-input" id="tripDefaultCurrencySelect" style="padding:13px 14px;"></select>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Trip mates</label>
+          <div id="mateList"></div>
+          <button class="add-mate-btn" onclick="addMate()">
+            <i class="fa-solid fa-plus" style="font-size:16px;"></i>
+            Add trip mate
+          </button>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="bottom-actions">
+          <button class="btn btn-primary" id="createTripSubmitBtn" onclick="submitTripForm()">Create Trip</button>
+          <button class="btn btn-danger" id="deleteTripBtn" style="display:none;" onclick="confirmDeleteItem('trip', window.editingTripId)">Delete Trip</button>
+        </div>
+      </section>
+
+      <!-- SCREEN 7: Share links -->
+      <section class="screen" data-screen="sharelinks">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:'Inter',-apple-system,sans-serif;">$</span></div></div>
+        <div style="margin-top:20px;">
+          <div class="success-icon">
+            <i class="fa-solid fa-check" style="font-size:28px;"></i>
+          </div>
+          <h2 class="header-title center-text" id="shareTripName">Bali with the crew is ready</h2>
+          <p class="header-desc center-text" style="margin-bottom:24px;">Share this link with your trip mates so everyone can add and edit expenses.</p>
+        </div>
+
+        <div class="link-card">
+          <div class="link-card-head">
+            <span class="link-card-label edit">
+              <i class="fa-solid fa-link" style="font-size:13px;"></i>
+              Trip link
+            </span>
+            <button class="copy-btn" onclick="copyLink(this)">Copy</button>
+          </div>
+          <div class="link-url" id="shareTripLinkUrl">settlr.app/t/8f2a-91cb</div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="bottom-actions">
+          <button class="btn btn-primary" onclick="goToDashboard(window.currentTripId)">Continue to Trip</button>
+          <button class="btn btn-ghost" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">Start over</button>
+        </div>
+      </section>
+
+      <!-- SCREEN 8: Trip dashboard (preview) -->
+      <section class="screen" data-screen="dashboard">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+
+        <div class="dash-scroll">
+          <div class="dash-header">
+            <div class="dash-trip-row">
+              <div class="dash-trip-icon"><span style="font-weight:800;">$</span></div>
+              <div>
+                <p class="dash-trip-name" id="dashboardTripName">Bali with the crew</p>
+                <p class="dash-trip-sub" id="dashboardTripSub">USD · IDR, SGD · 3 members</p>
+              </div>
+            </div>
+            <div class="dash-header-right">
+              <button class="icon-btn" id="editTripBtn" onclick="openEditTrip()" title="Edit">
+                <i class="fa-solid fa-pen" style="font-size:14px;"></i>
+              </button>
+              <button class="icon-btn" onclick="go('tripinfo')" title="Trip link">
+                <i class="fa-solid fa-circle-info" style="font-size:14px;"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="balance-card">
+            <p class="balance-label">Total Spending</p>
+            <p class="balance-amount" id="dashboardBalanceAmount">$0.00</p>
+            <p class="balance-sub" id="dashboardBalanceSub">Across 0 expenses · 3 members</p>
+          </div>
+
+          <div class="mates-row" id="dashMatesRow"></div>
+
+          <div class="section-title-row">
+            <p class="section-title">Recent Expenses</p>
+            <span class="section-link" onclick="go('allexpenses')" style="cursor:pointer;">See all</span>
+          </div>
+
+          <div id="expenseList"></div>
+
+          <div class="quick-actions-row">
+            <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="go('settleup')">Settle Up</button>
+            <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="go('stats')">Stats</button>
+          </div>
+        </div>
+
+        <button class="fab-add" id="addExpenseFab" onclick="openAddExpense()">
+          <i class="fa-solid fa-plus" style="font-size:16px;"></i>
+          Add Expense
+        </button>
+      </section>
+
+      <!-- SCREEN 8a2: All Expenses -->
+      <section class="screen" data-screen="allexpenses">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('dashboard')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 10px 0 16px;">
+          <h2 class="header-title">All Expenses</h2>
+        </div>
+        <div id="allExpensesList"></div>
+      </section>
+
+      <!-- SCREEN 8b: Add Expense -->
+      <section class="screen" data-screen="addexpense">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('dashboard')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 10px 0 16px;">
+          <h2 class="header-title" id="addExpenseTitle">Add Expense</h2>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Description</label>
+          <input class="field-input" id="expDescription" type="text" placeholder="e.g. Dinner at Sardine">
+        </div>
+
+        <div style="display:flex; gap:10px;">
+          <div class="field" style="flex:2;">
+            <label class="field-label">Amount</label>
+            <input class="field-input" id="expAmount" type="number" placeholder="0.00" value="68.50" oninput="renderSplitEditor()">
+          </div>
+          <div class="field" style="flex:1;">
+            <label class="field-label">Currency</label>
+            <select class="field-input" id="expCurrency" style="padding:13px 10px;" onchange="renderSplitEditor()">
+              <option>USD</option>
+              <option>IDR</option>
+              <option>SGD</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Category</label>
+          <div class="category-grid" id="categoryGrid"></div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Paid by</label>
+          <select class="field-input" id="expPaidBy" style="padding:13px 14px;">
+            <option>Alex</option>
+            <option>Jordan</option>
+            <option>Priya</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Split</label>
+          <div class="tab-switch" id="splitTypeTabs" style="margin-bottom:12px;">
+            <button class="tab-btn active" onclick="setSplitType('equal')">Equally</button>
+            <button class="tab-btn" onclick="setSplitType('percentage')">By %</button>
+            <button class="tab-btn" onclick="setSplitType('exact')">By Amount</button>
+          </div>
+          <div id="splitEditor"></div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Receipt</label>
+          <button type="button" class="add-mate-btn" id="receiptBtn" onclick="attachReceipt()">
+            <i class="fa-solid fa-camera" style="font-size:15px;"></i>
+            Attach Receipt Photo
+          </button>
+          <p class="receipt-locked-note" id="receiptLockedNote" style="display:none;">Sign in to save receipt photos with this trip.</p>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="bottom-actions">
+          <button class="btn btn-primary" id="saveExpenseBtn" onclick="saveExpense()">Save Expense</button>
+        </div>
+      </section>
+
+      <!-- SCREEN 8c: Settle Up -->
+      <section class="screen" data-screen="settleup">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('dashboard')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 10px 0 16px;">
+          <h2 class="header-title">Settle Up</h2>
+          <p class="header-desc">Simplified so each person pays as few people as possible — and you can settle a debt partially.</p>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Settle in</label>
+          <select class="field-input" id="settleCurrencySelect" style="padding:13px 14px;" onchange="renderSettleList(); renderSettledHistory();"></select>
+        </div>
+
+        <div id="settleList"></div>
+
+        <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:8px;">
+          <p class="section-title">Settled</p>
+        </div>
+        <div id="settledHistoryList"></div>
+      </section>
+
+      <!-- SCREEN 8d: Stats & Export -->
+      <section class="screen" data-screen="stats">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('dashboard')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 10px 0 16px;">
+          <h2 class="header-title">Trip Stats</h2>
+        </div>
+
+        <div class="balance-card" style="margin-bottom:20px;">
+          <p class="balance-label">Total Spent</p>
+          <p class="balance-amount" id="statsTotalSpent" style="color:var(--text-primary);">$0.00</p>
+          <p class="balance-sub" id="statsTotalSub">Across 0 expenses · 3 members</p>
+        </div>
+
+        <div class="section-title-row">
+          <p class="section-title">By Category</p>
+        </div>
+        <div id="categoryStatsList"></div>
+
+        <div class="spacer"></div>
+        <div class="bottom-actions">
+          <button class="btn btn-secondary" onclick="exportCSV()">
+            <i class="fa-solid fa-download" style="font-size:15px;"></i>
+            Export as CSV
+          </button>
+        </div>
+      </section>
+
+      <!-- SCREEN 8f: Trip Link info -->
+      <section class="screen" data-screen="tripinfo">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('dashboard')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 10px 0 16px;">
+          <h2 class="header-title">Trip Link</h2>
+          <p class="header-desc" id="tripInfoDesc">Share this with your trip mates so everyone can add and edit expenses.</p>
+        </div>
+
+        <div class="link-card">
+          <div class="link-card-head">
+            <span class="link-card-label edit">
+              <i class="fa-solid fa-link" style="font-size:13px;"></i>
+              Trip link
+            </span>
+            <button class="copy-btn" onclick="copyLink(this)">Copy</button>
+          </div>
+          <div class="link-url" id="tripInfoLinkUrl">settlr.app/t/8f2a-91cb</div>
+        </div>
+      </section>
+
+      <!-- Bill Split link info, mirrors tripinfo above -->
+      <section class="screen" data-screen="billinfo">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:'Inter',-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('billsplitdashboard')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 10px 0 16px;">
+          <h2 class="header-title">Bill Link</h2>
+          <p class="header-desc">Share this so everyone can see the itemized bill and what they owe.</p>
+        </div>
+
+        <div class="link-card">
+          <div class="link-card-head">
+            <span class="link-card-label edit">
+              <i class="fa-solid fa-link" style="font-size:13px;"></i>
+              Bill link
+            </span>
+            <button class="copy-btn" onclick="copyLink(this)">Copy</button>
+          </div>
+          <div class="link-url" id="billInfoLinkUrl">settlr.app/b/4c1a-77de</div>
+        </div>
+      </section>
+
+      <!-- SCREEN 9: Account home (authenticated trip picker) -->
+      <section class="screen" data-screen="accounthome">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('mode')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 14px 0 16px;">
+          <p class="header-eyebrow">Account Mode</p>
+          <h2 class="header-title">Where to next?</h2>
+          <p class="header-desc" style="margin-top:2px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <span id="accountEmailLabel"></span>
+            <a onclick="signOutAccount()" style="font-size:13.5px; color:var(--text-secondary); cursor:pointer; white-space:nowrap; text-decoration:underline;">Sign Out</a>
+          </p>
+        </div>
+
+        <div class="row-card" onclick="go('createtrip')" style="margin-bottom:10px;">
+          <div class="row-icon">
+            <i class="fa-solid fa-plus" style="font-size:18px;"></i>
+          </div>
+          <div style="flex:1;">
+            <p class="row-text-title">Start a New Trip</p>
+            <p class="row-text-sub">Name your trip and add who's coming</p>
+          </div>
+          <i class="fa-solid fa-chevron-right chevron"></i>
+        </div>
+
+        <div class="row-card" onclick="go('joinlink')" style="margin-bottom:10px;">
+          <div class="row-icon">
+            <i class="fa-solid fa-link" style="font-size:18px;"></i>
+          </div>
+          <div style="flex:1;">
+            <p class="row-text-title">Join Existing Trip</p>
+            <p class="row-text-sub">Paste a link someone shared with you</p>
+          </div>
+          <i class="fa-solid fa-chevron-right chevron"></i>
+        </div>
+
+        <div class="row-card" onclick="go('billsplitcreate')" style="margin-bottom:0;">
+          <div class="row-icon">
+            <i class="fa-solid fa-receipt" style="font-size:18px;"></i>
+          </div>
+          <div style="flex:1;">
+            <p class="row-text-title">Split a Bill</p>
+            <p class="row-text-sub">Divide a single receipt</p>
+          </div>
+          <i class="fa-solid fa-chevron-right chevron"></i>
+        </div>
+
+        <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:18px;">
+          <p class="section-title">Your Trips</p>
+        </div>
+
+        <div class="trips-list" id="tripsList"></div>
+
+        <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:18px;">
+          <p class="section-title">Your Bills</p>
+        </div>
+
+        <div class="trips-list" id="accountBillsList"></div>
+      </section>
+
+      <!-- SCREEN 10: Bill Split — create -->
+      <section class="screen" data-screen="billsplitcreate">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block">
+          <p class="header-eyebrow">Split a Bill</p>
+          <h2 class="header-title">New bill split</h2>
+          <p class="header-desc">For a single receipt — no travel dates or full trip setup needed.</p>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Bill name</label>
+          <input class="field-input" id="billNameInput" type="text" placeholder="e.g. Dinner at Nobu">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Receipt currency</label>
+          <select class="field-input" id="billCurrencySelect" style="padding:13px 14px;"></select>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Who's splitting this</label>
+          <div id="billMateList"></div>
+          <button class="add-mate-btn" onclick="addBillMate()">
+            <i class="fa-solid fa-plus" style="font-size:16px;"></i>
+            Add person
+          </button>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="bottom-actions">
+          <button class="btn btn-primary" id="billCreateSubmitBtn" onclick="createBillSplit()">Create Bill Split</button>
+        </div>
+      </section>
+
+      <!-- SCREEN 11: Bill Split — share link -->
+      <section class="screen" data-screen="billsplitshare">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:'Inter',-apple-system,sans-serif;">$</span></div></div>
+        <div style="margin-top:20px;">
+          <div class="success-icon">
+            <i class="fa-solid fa-check" style="font-size:28px;"></i>
+          </div>
+          <h2 class="header-title center-text" id="billShareName">Dinner at Nobu is ready</h2>
+          <p class="header-desc center-text" style="margin-bottom:24px;">Share this link so everyone can see the itemized bill and what they owe.</p>
+        </div>
+
+        <div class="link-card">
+          <div class="link-card-head">
+            <span class="link-card-label edit">
+              <i class="fa-solid fa-link" style="font-size:13px;"></i>
+              Bill link
+            </span>
+            <button class="copy-btn" onclick="copyLink(this)">Copy</button>
+          </div>
+          <div class="link-url" id="billShareLinkUrl">settlr.app/b/4c1a-77de</div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="bottom-actions">
+          <button class="btn btn-primary" onclick="goToBillDashboard()">Continue to Bill Split</button>
+          <button class="btn btn-ghost" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">Start over</button>
+        </div>
+      </section>
+
+      <!-- SCREEN 12: Bill Split — dashboard -->
+      <section class="screen" data-screen="billsplitdashboard">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+
+        <div class="dash-scroll">
+          <div class="dash-header">
+            <div class="dash-trip-row">
+              <div class="dash-trip-icon"><span style="font-weight:800;">$</span></div>
+              <div>
+                <p class="dash-trip-name" id="billDashboardName">Dinner at Nobu</p>
+                <p class="dash-trip-sub" id="billDashboardSub">Receipt currency USD</p>
+              </div>
+            </div>
+            <div class="dash-header-right">
+              <button class="icon-btn" onclick="go('billinfo')" title="Bill link">
+                <i class="fa-solid fa-circle-info" style="font-size:14px;"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="field" style="margin-top:4px;">
+            <label class="field-label">Paying person (paid the receipt)</label>
+            <select class="field-input" id="billPayerSelect" style="padding:13px 14px;" onchange="setBillPayer(this.value)"></select>
+          </div>
+
+          <div class="section-title-row">
+            <p class="section-title">Items</p>
+          </div>
+          <div id="billItemsList"></div>
+          <button class="add-mate-btn" onclick="openAddBillItem()" style="margin-top:4px;">
+            <i class="fa-solid fa-plus" style="font-size:16px;"></i>
+            Add Item
+          </button>
+
+          <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:18px;">
+            <p class="section-title">Tax, service & tip</p>
+          </div>
+          <div class="field">
+            <label class="field-label">Already included in item prices?</label>
+            <div class="tab-switch" id="billTaxIncludedTabs">
+              <button class="tab-btn" onclick="setBillTaxIncluded(true)">Yes, included</button>
+              <button class="tab-btn active" onclick="setBillTaxIncluded(false)">No, add below</button>
+            </div>
+          </div>
+          <div id="billTaxFields">
+            <div class="field">
+              <label class="field-label">Service tax %</label>
+              <input class="field-input" type="number" id="billServicePct" value="10" oninput="onBillTaxFieldsChange()">
+            </div>
+            <div class="field">
+              <label class="field-label">Tip</label>
+              <div class="tab-switch" id="billTipModeTabs" style="margin-bottom:10px;">
+                <button class="tab-btn active" onclick="setBillTipMode('percent')">% of subtotal</button>
+                <button class="tab-btn" onclick="setBillTipMode('exact')">Exact amount</button>
+              </div>
+              <input class="field-input" type="number" id="billTipValue" value="0" oninput="onBillTaxFieldsChange()">
+            </div>
+            <div class="field">
+              <label class="field-label">GST %</label>
+              <input class="field-input" type="number" id="billGstPct" value="9" oninput="onBillTaxFieldsChange()">
+            </div>
+            <div class="field">
+              <label class="field-label">Apply GST to the service tax amount too?</label>
+              <div class="tab-switch" id="billGstOnServiceTabs">
+                <button class="tab-btn active" onclick="setBillGstOnService(true)">Yes</button>
+                <button class="tab-btn" onclick="setBillGstOnService(false)">No, subtotal only</button>
+              </div>
+              <p class="split-hint" style="margin-top:8px;">Tip is never taxed — GST and service tax are always calculated before tip is added.</p>
+            </div>
+          </div>
+
+          <div class="balance-card" style="margin-top:8px;">
+            <p class="balance-label">Total (incl. tax, service & tip)</p>
+            <p class="balance-amount" id="billTotalAmount">$0.00</p>
+            <p class="balance-sub" id="billTotalSub">0 items</p>
+          </div>
+
+          <div class="quick-actions-row">
+            <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="go('billsplitsettle')">Settle Up</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN 13: Bill Split — add/edit item -->
+      <section class="screen" data-screen="billsplitadditem">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('billsplitdashboard')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 10px 0 16px;">
+          <h2 class="header-title" id="billItemTitle">Add Item</h2>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Item description</label>
+          <input class="field-input" id="billItemDescription" type="text" placeholder="e.g. Wagyu Steak">
+        </div>
+
+        <div class="field">
+          <label class="field-label" id="billItemAmountLabel">Amount (USD)</label>
+          <input class="field-input" id="billItemAmount" type="number" placeholder="0.00">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Payable by</label>
+          <select class="field-input" id="billItemOwedBy" style="padding:13px 14px;"></select>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="bottom-actions">
+          <button class="btn btn-primary" id="billItemSaveBtn" onclick="saveBillItem()">Save Item</button>
+        </div>
+      </section>
+
+      <!-- SCREEN 14: Bill Split — settle up -->
+      <section class="screen" data-screen="billsplitsettle">
+        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+          <button class="back-btn" onclick="go('billsplitdashboard')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 10px 0 16px;">
+          <h2 class="header-title" id="billSettleTitle">Settle Up</h2>
+          <p class="header-desc" id="billSettleDesc">Full breakdown, including tax, service & tip.</p>
+        </div>
+
+        <div id="billSettleItemsList"></div>
+
+        <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:8px;">
+          <p class="section-title">Bill breakdown</p>
+        </div>
+        <div id="billSettleBreakdown"></div>
+
+        <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:8px;">
+          <p class="section-title">Payable to <span id="billSettlePayerName">Alex</span></p>
+        </div>
+        <div id="billSettlePerPerson"></div>
+
+        <div class="spacer"></div>
+        <div class="bottom-actions">
+          <button class="btn btn-secondary" onclick="exportBillScreenshot()">
+            <i class="fa-solid fa-camera" style="font-size:15px;"></i>
+            Save as Image
+          </button>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="confirm-overlay" id="confirmOverlay">
+      <div class="confirm-box">
+        <p class="confirm-title" id="confirmTitle">Delete this?</p>
+        <p class="confirm-desc" id="confirmDesc">This can't be undone.</p>
+        <div class="confirm-actions">
+          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="closeConfirm()">Cancel</button>
+          <button class="btn btn-danger btn-sm" style="flex:1;" id="confirmActionBtn">Delete</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ---- Supabase client ----
+  // The anon key is safe to expose in frontend code — Row Level
+  // Security and the guest-token RPC functions (see backend/supabase)
+  // are what actually gate access, not secrecy of this key. Named `sb`
+  // rather than `supabase` so it doesn't shadow the CDN script's global.
+  const SUPABASE_URL = 'https://qdrwjkeczyualpncrdin.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFkcndqa2Vjenl1YWxwbmNyZGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5Nzg5MzAsImV4cCI6MjEwMDU1NDkzMH0.t0-WG9nErkXLgQ-x7SuV9tZEKC_qEoPR9o9VGJ8DVuY';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ---- Icon library (self-contained — no external font/CDN, so icons
+  // never fail to load regardless of network conditions) ----
+  // Font Awesome class for each of svgIcon()'s old hand-drawn-SVG names —
+  // every call site (`svgIcon('pen', 13)` etc.) is unchanged, only the
+  // markup it returns is now an <i class="fa-solid ..."> instead of raw
+  // SVG paths.
+  const ICONS = {
+    bed: 'fa-bed',
+    utensils: 'fa-utensils',
+    car: 'fa-car',
+    shopping: 'fa-bag-shopping',
+    ticket: 'fa-ticket',
+    ellipsis: 'fa-ellipsis',
+    eye: 'fa-eye',
+    pen: 'fa-pen',
+    trash: 'fa-trash'
+  };
+  function svgIcon(name, size) {
+    size = size || 16;
+    const cls = ICONS[name] || 'fa-circle-question';
+    return `<i class="fa-solid ${cls}" style="font-size:${size}px; line-height:1;"></i>`;
+  }
+
+  // ---- Theme ----
+  const body = document.body;
+  const themeBtn = document.getElementById('themeBtn');
+  const themeLabel = document.getElementById('themeLabel');
+  const sunIcon = '<i class="fa-solid fa-sun" style="font-size:16px;"></i>';
+  const moonIcon = '<i class="fa-solid fa-moon" style="font-size:16px;"></i>';
+
+  function setTheme(mode) {
+    body.setAttribute('data-theme', mode);
+    themeBtn.innerHTML = mode === 'dark' ? moonIcon : sunIcon;
+    themeLabel.textContent = mode.toUpperCase();
+    localStorage.setItem('settlr-theme', mode);
+  }
+  themeBtn.addEventListener('click', () => {
+    setTheme(body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+  setTheme(localStorage.getItem('settlr-theme') || 'dark');
+
+  // ---- Screen navigation ----
+  window.isAuthenticated = false;
+  const screens = document.querySelectorAll('.screen');
+  function go(name) {
+    screens.forEach(s => {
+      if (s.dataset.screen === name) {
+        s.classList.add('active');
+        s.classList.remove('exit-left');
+      } else {
+        s.classList.remove('active');
+      }
+    });
+    if (name === 'createtrip') {
+      const editing = !!window.editingTripId && !!window.allTrips[window.editingTripId];
+      document.getElementById('createTripTitle').textContent = editing ? 'Edit Trip' : 'Create your trip';
+      document.getElementById('createTripDesc').style.display = editing ? 'block' : 'none';
+      document.getElementById('deleteTripBtn').style.display = editing ? 'flex' : 'none';
+      document.getElementById('createTripSubmitBtn').textContent = editing ? 'Save Changes' : 'Create Trip';
+      populateCurrencySelect(document.getElementById('tripCurrencySelect'), 'SGD');
+
+      if (editing) {
+        const t = window.allTrips[window.editingTripId];
+        document.getElementById('guestBanner').style.display = 'none';
+        document.getElementById('tripNameInput').value = t.name;
+        window.selectedTripCurrencies = [t.currencies.home, ...t.currencies.travel];
+        // data-member-id lets submitTripForm() diff renamed/added/removed
+        // mates against their real backend ids instead of guessing
+        // identity from name alone (a name can change during the same edit).
+        document.getElementById('mateList').innerHTML = t.mates.map(m => `
+          <div class="mate-row" data-member-id="${(t.memberIds && t.memberIds[m]) || ''}">
+            <div class="mate-avatar">${m[0]}</div>
+            <input class="field-input" type="text" placeholder="Name" value="${m.replace(/"/g, '&quot;')}">
+            <div class="mate-remove" onclick="this.parentElement.remove()">✕</div>
+          </div>
+        `).join('');
+      } else {
+        updateGuestBanner();
+        document.getElementById('tripNameInput').value = '';
+        window.selectedTripCurrencies = ['SGD'];
+        document.getElementById('mateList').innerHTML = '';
+      }
+      renderTripCurrencyChips();
+      if (editing) document.getElementById('tripDefaultCurrencySelect').value = window.allTrips[window.editingTripId].currencies.home;
+    }
+    if (name === 'joinlink') updateJoinSigninHelper();
+    if (name === 'accounthome') { renderTripsList(); renderAccountBillsList(); }
+    if (name === 'guest') { renderGuestTripsList(); renderGuestBillsList(); }
+    if (name === 'dashboard') {
+      const t = currentTrip();
+      document.getElementById('dashboardTripName').textContent = t.name;
+      renderDashMates();
+      renderExpenseList();
+      renderBalance();
+    }
+    if (name === 'tripinfo') {
+      const t = currentTrip();
+      document.getElementById('tripInfoLinkUrl').textContent = t.link;
+    }
+    if (name === 'billinfo') {
+      const d = currentBill();
+      document.getElementById('billInfoLinkUrl').textContent = d.link;
+    }
+    if (name === 'allexpenses') renderAllExpensesList();
+    if (name === 'addexpense') {
+      const isEdit = window.editingExpenseId != null;
+      renderExpenseCurrencyOptions();
+      resetExpenseForm();
+      renderCategoryGrid();
+      renderSplitEditor();
+      document.getElementById('receiptLockedNote').style.display = 'none';
+      document.getElementById('addExpenseTitle').textContent = isEdit ? 'Edit Expense' : 'Add Expense';
+      document.getElementById('saveExpenseBtn').textContent = isEdit ? 'Save Changes' : 'Save Expense';
+      if (isEdit) applyExpenseToForm(window.editingExpenseId);
+    }
+    if (name === 'settleup') {
+      const t = currentTrip();
+      const settleCurrencies = [t.currencies.home, ...t.currencies.travel.filter(c => c !== t.currencies.home)];
+      const sel = document.getElementById('settleCurrencySelect');
+      sel.innerHTML = settleCurrencies.map(c => `<option value="${c}">${c}</option>`).join('');
+      sel.value = t.currencies.home;
+      renderSettleList();
+      renderSettledHistory();
+    }
+    if (name === 'stats') renderCategoryStats();
+    if (name === 'billsplitcreate') {
+      populateCurrencySelect(document.getElementById('billCurrencySelect'), 'SGD');
+      document.getElementById('billNameInput').value = '';
+      document.getElementById('billMateList').innerHTML = '';
+    }
+    if (name === 'billsplitdashboard') renderBillDashboard();
+    if (name === 'billsplitadditem') prepareBillItemForm();
+    if (name === 'billsplitsettle') renderBillSettle();
+    document.getElementById('screens').scrollTop = 0;
+  }
+
+  // ---- Hide the "Guest trip" banner once signed in ----
+  function updateGuestBanner() {
+    document.getElementById('guestBanner').style.display = window.isAuthenticated ? 'none' : 'flex';
+  }
+
+  // ---- Hide "Signed in already?" once already signed in ----
+  function updateJoinSigninHelper() {
+    document.getElementById('joinSigninHelper').style.display = window.isAuthenticated ? 'none' : 'block';
+  }
+
+  // ---- Trips in this account, most recently updated first ----
+  // Derived straight from window.allTrips (filtered to non-guest
+  // records) so this list can never drift out of sync with a
+  // trip's actual data — no separate summary array to keep in sync.
+  function renderTripsList() {
+    const list = document.getElementById('tripsList');
+    // isDemo fixtures are inert placeholders from before real auth was
+    // wired — exclude them so a real signed-in user only ever sees
+    // trips that actually belong to their account.
+    const trips = Object.values(window.allTrips).filter(t => !t.isGuest && !t.isDemo).sort((a, b) => b.updatedAt - a.updatedAt);
+    if (!trips.length) {
+      list.innerHTML = '<p class="guest-trips-empty">No trips yet — start or join one above.</p>';
+      return;
+    }
+    list.innerHTML = trips.map(t => {
+      const total = t.expenses.reduce((sum, e) => sum + convertAmount(e.amount, e.currency, t.currencies.home), 0);
+      return `
+        <div class="trip-card" onclick="goToDashboard('${t.id}')">
+          <div class="trip-card-icon"><span style="font-weight:800;">$</span></div>
+          <div style="flex:1;">
+            <p class="trip-card-name">${t.name}</p>
+            <p class="trip-card-sub">${t.mates.length} members · ${t.expenses.length} expense${t.expenses.length === 1 ? '' : 's'}</p>
+          </div>
+          <div class="trip-card-balance neutral">${formatMoney(total, t.currencies.home)}</div>
+          <button class="icon-btn card-delete-btn" onclick="event.stopPropagation(); confirmDeleteItem('trip', '${t.id}')" title="Delete trip">${svgIcon('trash', 14)}</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ---- Auth tabs ----
+  function setAuthTab(tab) {
+    const isSignIn = tab === 'signin';
+    document.getElementById('tabSignIn').classList.toggle('active', isSignIn);
+    document.getElementById('tabCreate').classList.toggle('active', !isSignIn);
+    document.getElementById('authTitle').textContent = isSignIn ? 'Welcome back' : 'Create your account';
+    document.getElementById('authDesc').textContent = isSignIn
+      ? 'Sign in to access your trips, favorites, and saved receipts.'
+      : 'Save every trip, add favorites, and save receipt photos.';
+    document.getElementById('authSubmit').textContent = isSignIn ? 'Sign In' : 'Create Account';
+    const forgotRow = document.getElementById('forgotPasswordRow');
+    if (forgotRow) forgotRow.style.display = isSignIn ? '' : 'none';
+  }
+
+  // ---- Copy link ----
+  // Reads the actual link text from the .link-url sibling and writes it
+  // to the clipboard, with a legacy execCommand fallback for contexts
+  // where navigator.clipboard isn't available (e.g. some file:// setups).
+  function copyLink(btn) {
+    const card = btn.closest('.link-card');
+    const urlEl = card && card.querySelector('.link-url');
+    const text = urlEl ? urlEl.textContent.trim() : '';
+    if (!text) return;
+
+    const showCopied = () => {
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showCopied, () => fallbackCopy(text, showCopied));
+    } else {
+      fallbackCopy(text, showCopied);
+    }
+  }
+
+  function fallbackCopy(text, onDone) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      onDone();
+    } catch (err) {
+      console.warn('Could not copy link to clipboard', err);
+    }
+  }
+
+  // ---- Create Trip: multiple currencies, shown as removable chips ----
+  window.selectedTripCurrencies = ['SGD'];
+
+  function renderTripCurrencyChips() {
+    const wrap = document.getElementById('tripCurrencyChips');
+    if (!wrap) return;
+    wrap.innerHTML = window.selectedTripCurrencies.map(c => `
+      <div class="currency-chip">
+        <span class="currency-badge">${c}</span>
+        <span class="currency-name">${(CURRENCY_META[c] || {}).name || c}</span>
+        ${window.selectedTripCurrencies.length > 1 ? `<span class="chip-x" onclick="removeTripCurrency('${c}')">✕</span>` : ''}
+      </div>
+    `).join('');
+    renderTripDefaultCurrencyOptions();
+  }
+
+  // The default currency dropdown always mirrors whichever currencies are
+  // currently selected — if the previously-chosen default gets removed,
+  // fall back to the first (primary) currency in the list.
+  function renderTripDefaultCurrencyOptions() {
+    const sel = document.getElementById('tripDefaultCurrencySelect');
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = window.selectedTripCurrencies.map(c => `<option value="${c}">${c} — ${(CURRENCY_META[c] || {}).name || c}</option>`).join('');
+    sel.value = window.selectedTripCurrencies.includes(prev) ? prev : window.selectedTripCurrencies[0];
+  }
+
+  function addTripCurrencyChip() {
+    const sel = document.getElementById('tripCurrencySelect');
+    const code = sel && sel.value;
+    if (!code || window.selectedTripCurrencies.includes(code)) return;
+    window.selectedTripCurrencies.push(code);
+    renderTripCurrencyChips();
+  }
+
+  function removeTripCurrency(code) {
+    if (window.selectedTripCurrencies.length <= 1) return; // always keep at least one
+    window.selectedTripCurrencies = window.selectedTripCurrencies.filter(c => c !== code);
+    renderTripCurrencyChips();
+  }
+
+  // ---- Add trip mate ----
+  let mateCount = 2;
+  const mateColors = ['A','B','C','D','E'];
+  function addMate() {
+    mateCount++;
+    const wrap = document.createElement('div');
+    wrap.className = 'mate-row';
+    wrap.innerHTML = `
+      <div class="mate-avatar">${String.fromCharCode(64 + mateCount)}</div>
+      <input class="field-input" type="text" placeholder="Name">
+      <div class="mate-remove" onclick="this.parentElement.remove()">✕</div>
+    `;
+    document.getElementById('mateList').appendChild(wrap);
+    wrap.querySelector('input').focus();
+  }
+
+  // ---- Open the dashboard's Edit button: reuses the Create Trip screen
+  // in "edit" mode (title/subheader/button swap handled in go()) so name,
+  // currencies, and mates all live in one place instead of two screens.
+  window.editingTripId = null;
+  async function openEditTrip() {
+    window.editingTripId = window.currentTripId;
+    // Defensive refresh, same reasoning as goToDashboard: make sure
+    // memberIds reflects the real backend before the edit form reads it
+    // for the data-member-id diff in submitTripForm().
+    const t = window.allTrips[window.editingTripId];
+    if (t && t.shareToken) await reloadTripFromSupabase(t.id);
+    go('createtrip');
+  }
+
+  // ---- Create trip OR save edits → same form, same button ----
+  // Each trip gets its own id, its own mates/currencies/expenses, and its
+  // own link — nothing here is shared global state, so two trips never
+  // bleed into each other.
+  // ---- Supabase data adapter (guest trips only, for now) ----
+  // A trip counts as "Supabase-backed" once it has a shareToken (set on
+  // create or join via the real backend below). Trips without one — the
+  // hardcoded demo seeds, or the authenticated-mode path, which still
+  // needs real Supabase Auth wiring — keep the original local-only
+  // behavior untouched everywhere in this file.
+  //
+  // applySupabaseTripData() takes get_trip_by_token's response (member
+  // ids, not names) and rewrites the trip object in place into this
+  // prototype's existing shape (member display names throughout), plus
+  // stashes a name -> id map on `t.memberIds` so the next write (adding
+  // an expense, recording a settlement, etc.) can translate back.
+  function applySupabaseTripData(t, data) {
+    const idToName = {};
+    const nameToId = {};
+    data.members.forEach(m => { idToName[m.id] = m.display_name; nameToId[m.display_name] = m.id; });
+
+    const expenses = (data.expenses || []).map(e => ({
+      id: e.id,
+      description: e.description,
+      category: e.category,
+      amount: parseFloat(e.amount),
+      currency: e.currency,
+      paidBy: idToName[e.paid_by] || '?',
+      splitLabel: SPLIT_LABELS[e.split_type] || 'Split equally',
+      sub: '',
+      splits: (data.expense_splits || [])
+        .filter(s => s.expense_id === e.id)
+        .map(s => ({ member: idToName[s.trip_member_id] || '?', share: parseFloat(s.owed_amount) }))
+    }));
+
+    const settledHistory = (data.settlements || []).map(h => ({
+      id: h.id,
+      from: idToName[h.from_member_id] || '?',
+      to: idToName[h.to_member_id] || '?',
+      amount: parseFloat(h.amount)
+    }));
+
+    t.name = data.trip.name;
+    t.mates = data.members.map(m => m.display_name);
+    t.currencies = { home: data.trip.home_currency, travel: data.trip.travel_currencies || [] };
+    t.expenses = expenses;
+    t.settledHistory = settledHistory;
+    t.memberIds = nameToId;
+    t.updatedAt = Date.now();
+  }
+
+  // Re-fetches a Supabase-backed trip and rewrites it in place — called
+  // after every write (add/edit/delete expense, record/undo settlement)
+  // so the UI always reflects what's actually in the database rather
+  // than a manually-reconstructed guess of what the write did.
+  async function reloadTripFromSupabase(id) {
+    const t = window.allTrips[id];
+    if (!t || !t.shareToken) return;
+    const { data, error } = await sb.rpc('get_trip_by_token', { p_token: t.shareToken });
+    if (error) { console.error('Could not refresh trip from Supabase', error); return; }
+    applySupabaseTripData(t, data);
+  }
+
+  // ---- Bill Split's Supabase data adapter — same idea as
+  // applySupabaseTripData/reloadTripFromSupabase above, just for
+  // get_bill_by_token's shape (bill/members/items instead of
+  // trip/members/expenses/expense_splits/settlements). A bill counts
+  // as Supabase-backed once it has a shareToken, exactly like trips.
+  function applySupabaseBillData(b, data) {
+    const idToName = {};
+    const nameToId = {};
+    data.members.forEach(m => { idToName[m.id] = m.display_name; nameToId[m.display_name] = m.id; });
+
+    const items = (data.items || []).map(it => ({
+      id: it.id,
+      description: it.description,
+      amount: parseFloat(it.amount),
+      owedBy: idToName[it.owed_by] || '?'
+    }));
+
+    b.name = data.bill.name;
+    b.currency = data.bill.currency;
+    b.mates = data.members.map(m => m.display_name);
+    b.payer = idToName[data.bill.payer_member_id] || b.mates[0];
+    b.items = items;
+    b.taxIncluded = data.bill.tax_included;
+    b.servicePct = parseFloat(data.bill.service_pct);
+    b.gstOnService = data.bill.gst_on_service;
+    b.gstPct = parseFloat(data.bill.gst_pct);
+    b.tipMode = data.bill.tip_mode;
+    b.tipPercent = parseFloat(data.bill.tip_percent);
+    b.tipExact = parseFloat(data.bill.tip_exact);
+    b.memberIds = nameToId;
+    b.updatedAt = Date.now();
+  }
+
+  async function reloadBillFromSupabase(id) {
+    const b = window.allBills[id];
+    if (!b || !b.shareToken) return;
+    const { data, error } = await sb.rpc('get_bill_by_token', { p_token: b.shareToken });
+    if (error) { console.error('Could not refresh bill from Supabase', error); return; }
+    applySupabaseBillData(b, data);
+  }
+
+  // Bill settings (payer/tax/service/GST/tip) fire on every keystroke
+  // locally (see onBillTaxFieldsChange etc. below) — pushing to Supabase
+  // on every keystroke would be both chatty and, if followed by a
+  // reload+rerender, would stomp on whatever the person is mid-typing.
+  // So this just debounces a fire-and-forget save of whatever the local
+  // record already holds, with no reload afterward (the client is
+  // already the source of truth for these fields at save time).
+  let billSettingsSaveTimer = null;
+  function scheduleBillSettingsSave(d) {
+    if (!d.shareToken) return;
+    clearTimeout(billSettingsSaveTimer);
+    billSettingsSaveTimer = setTimeout(async () => {
+      const payerId = (d.memberIds && d.memberIds[d.payer]) || null;
+      const { error } = await sb.rpc('update_bill_settings_by_token', {
+        p_token: d.shareToken,
+        p_payer_member_id: payerId,
+        p_tax_included: d.taxIncluded,
+        p_service_pct: d.servicePct,
+        p_gst_on_service: d.gstOnService,
+        p_gst_pct: d.gstPct,
+        p_tip_mode: d.tipMode,
+        p_tip_percent: d.tipPercent,
+        p_tip_exact: d.tipExact
+      });
+      if (error) console.error('Could not save bill settings to Supabase', error);
+    }, 600);
+  }
+
+  // ══════════════════════════════════════════════════════
+  // Real Supabase Auth (email/password) — replaces the old fake
+  // `window.isAuthenticated = true` toggle. A trip/bill created while
+  // signed in is a normal owned row (owner_user_id set), which still
+  // gets a share_token like every trip/bill does — so once it's loaded
+  // with a shareToken, all the existing guest-RPC-based mutation code
+  // (edit/delete trip, add/edit/delete expense, settle up, bill items,
+  // bill settings, delete bill) already works on it unchanged. The only
+  // thing genuinely new here is signing in/up/out and listing what's
+  // actually yours instead of guessing from local state.
+  // ══════════════════════════════════════════════════════
+  window.authSession = null;
+
+  // Google/Microsoft buttons — this navigates the whole tab away to the
+  // provider's consent screen, then back to this same page. supabase-js
+  // parses the resulting #access_token=... hash automatically on load
+  // (detectSessionInUrl defaults to true), so the session-restore IIFE
+  // below picks it up via getSession() without any extra code here.
+  // Azure specifically needs the 'email' scope requested explicitly, or
+  // Supabase won't get a verified email back from Microsoft's side.
+  async function signInWithOAuthProvider(provider) {
+    const redirectTo = window.location.origin + window.location.pathname;
+    const options = { redirectTo };
+    if (provider === 'azure') options.scopes = 'email';
+
+    const { error } = await sb.auth.signInWithOAuth({ provider, options });
+    if (error) {
+      console.error('OAuth sign-in error', error);
+      alert('Could not start ' + (provider === 'google' ? 'Google' : 'Microsoft') + ' sign-in — ' + error.message);
+    }
+    // On success there's no more code to run — the browser is already
+    // navigating away to the provider's consent screen.
+  }
+
+  async function submitAuthForm() {
+    const email = (document.getElementById('authEmailInput').value || '').trim();
+    const password = document.getElementById('authPasswordInput').value || '';
+    const isCreate = document.getElementById('tabCreate').classList.contains('active');
+
+    if (!email || !password) {
+      alert('Enter both an email and a password.');
+      return;
+    }
+
+    const submitBtn = document.getElementById('authSubmit');
+    const originalLabel = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = isCreate ? 'Creating account…' : 'Signing in…';
+
+    const { data, error } = isCreate
+      ? await sb.auth.signUp({ email, password })
+      : await sb.auth.signInWithPassword({ email, password });
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalLabel;
+
+    if (error) {
+      console.error('Auth error', error);
+      alert((isCreate ? 'Could not create your account' : 'Could not sign in') + ' — ' + error.message);
+      return;
+    }
+
+    if (isCreate && !data.session) {
+      // Project has email confirmation turned on — no session yet.
+      alert('Account created — check your email to confirm it, then sign in.');
+      setAuthTab('signin');
+      return;
+    }
+
+    window.authSession = data.session;
+    window.isAuthenticated = true;
+    await Promise.all([loadMyTrips(), loadMyBills()]);
+    go('accounthome');
+  }
+
+  // "Forgot your password?" — sends a reset link to whatever's typed in
+  // the email field (or prompts for it if empty), landing back on this
+  // same page with a #type=recovery session that onAuthStateChange
+  // below catches to prompt for a new password.
+  async function forgotPassword() {
+    let email = (document.getElementById('authEmailInput').value || '').trim();
+    if (!email) email = (prompt('Enter the email for your account:') || '').trim();
+    if (!email) return;
+
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) {
+      console.error('Could not send password reset email', error);
+      alert('Could not send a reset link — ' + error.message);
+      return;
+    }
+    alert('Check ' + email + ' for a password reset link.');
+  }
+
+  async function signOutAccount() {
+    await sb.auth.signOut();
+    window.authSession = null;
+    window.isAuthenticated = false;
+    // Drop this session's real trips/bills from local state — a later
+    // sign-in (possibly as someone else, on a shared device) shouldn't
+    // ever show a previous account's data.
+    Object.keys(window.allTrips).forEach(id => { if (window.allTrips[id].isAccountTrip) delete window.allTrips[id]; });
+    Object.keys(window.allBills).forEach(id => { if (window.allBills[id].isAccountBill) delete window.allBills[id]; });
+    go('mode');
+  }
+
+  // Lists are rebuilt from scratch each call (rather than reused/merged)
+  // since this always runs right after sign-in or a fresh session
+  // restore, when local state can't yet be stale.
+  async function loadMyTrips() {
+    const { data: rows, error } = await sb.from('trips').select('id, share_token, updated_at').order('updated_at', { ascending: false });
+    if (error) { console.error('Could not load your trips', error); return; }
+    for (const row of rows) {
+      const t = window.allTrips[row.id] || { id: row.id };
+      t.isGuest = false;
+      t.isAccountTrip = true;
+      t.shareToken = row.share_token;
+      t.link = 'settlr.app/t/' + row.share_token;
+      window.allTrips[row.id] = t;
+      // Reuses the exact same RPC + adapter guest trips use — a trip's
+      // shape from get_trip_by_token doesn't depend on who's asking.
+      const { data: fullData, error: fetchErr } = await sb.rpc('get_trip_by_token', { p_token: row.share_token });
+      if (fetchErr) console.error('Could not load trip ' + row.id, fetchErr);
+      else applySupabaseTripData(t, fullData);
+    }
+    const email = window.authSession && window.authSession.user && window.authSession.user.email;
+    const label = document.getElementById('accountEmailLabel');
+    if (label) label.textContent = email ? `Signed in as ${email}` : '';
+  }
+
+  async function loadMyBills() {
+    const { data: rows, error } = await sb.from('bills').select('id, share_token, updated_at').order('updated_at', { ascending: false });
+    if (error) { console.error('Could not load your bill splits', error); return; }
+    for (const row of rows) {
+      const b = window.allBills[row.id] || { id: row.id };
+      b.isGuest = false;
+      b.isAccountBill = true;
+      b.shareToken = row.share_token;
+      b.link = 'settlr.app/b/' + row.share_token;
+      window.allBills[row.id] = b;
+      const { data: fullData, error: fetchErr } = await sb.rpc('get_bill_by_token', { p_token: row.share_token });
+      if (fetchErr) console.error('Could not load bill ' + row.id, fetchErr);
+      else applySupabaseBillData(b, fullData);
+    }
+  }
+
+  // A password-reset link lands back here with #...type=recovery in the
+  // URL. supabase-js still turns that into a real (temporary) session via
+  // detectSessionInUrl, so getSession() below returns one — but we want
+  // to prompt for a new password instead of just logging the user in as
+  // if this were a normal sign-in.
+  const isPasswordRecovery = window.location.hash.includes('type=recovery');
+
+  async function promptForNewPassword() {
+    const newPassword = prompt('Enter a new password for your account:');
+    if (!newPassword) {
+      alert('Password reset cancelled — you can request a new link anytime from the Sign In screen.');
+      go('auth');
+      return;
+    }
+    const { error } = await sb.auth.updateUser({ password: newPassword });
+    if (error) {
+      console.error('Could not update password', error);
+      alert('Could not set your new password — ' + error.message);
+      go('auth');
+      return;
+    }
+    alert('Password updated — you\'re signed in.');
+    await Promise.all([loadMyTrips(), loadMyBills()]);
+    go('accounthome');
+  }
+
+  // Restore a previously signed-in session (supabase-js persists it in
+  // localStorage by default) so reopening the app doesn't force signing
+  // in again every time, then keep window.isAuthenticated in sync with
+  // whatever happens to the session afterward (sign-in elsewhere,
+  // expiry, etc).
+  (async () => {
+    const { data, error } = await sb.auth.getSession();
+    if (error) { console.error('Could not restore session', error); return; }
+    if (data.session) {
+      window.authSession = data.session;
+      window.isAuthenticated = true;
+      if (isPasswordRecovery) {
+        await promptForNewPassword();
+      } else {
+        await Promise.all([loadMyTrips(), loadMyBills()]);
+        go('accounthome');
+      }
+    }
+  })();
+
+  sb.auth.onAuthStateChange((event, session) => {
+    window.authSession = session;
+    window.isAuthenticated = !!session;
+  });
+
+  async function submitTripForm() {
+    const nameInput = document.getElementById('tripNameInput');
+    const name = (nameInput && nameInput.value.trim()) || 'Your Trip';
+
+    const currencies = window.selectedTripCurrencies && window.selectedTripCurrencies.length
+      ? window.selectedTripCurrencies
+      : ['SGD'];
+    // The Default currency field picks which of the selected currencies is
+    // "home" (what totals, Settle Up, and Add Expense default to); the rest
+    // are just additional currencies available when logging an expense.
+    const defaultSel = document.getElementById('tripDefaultCurrencySelect');
+    const home = (defaultSel && defaultSel.value && currencies.includes(defaultSel.value)) ? defaultSel.value : currencies[0];
+    const travel = currencies.filter(c => c !== home);
+    const mates = Array.from(document.querySelectorAll('#mateList .mate-row input'))
+      .map(i => i.value.trim()).filter(Boolean);
+
+    if (window.editingTripId) {
+      const t = window.allTrips[window.editingTripId];
+      window.editingTripId = null;
+      if (!t) { go(window.isAuthenticated ? 'accounthome' : 'guest'); return; }
+
+      // ── Supabase-backed trip: push the rename/currency change, then
+      // diff each mate row against the data-member-id stamped on it when
+      // the edit form was populated — a rename hits update_trip_member_by_token,
+      // a brand-new row (no id yet) hits add_trip_member_by_token, and
+      // anyone who was there before but no longer has a row gets removed.
+      if (t.shareToken) {
+        const submitBtn = document.getElementById('createTripSubmitBtn');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+
+        const { error: updErr } = await sb.rpc('update_trip_by_token', {
+          p_token: t.shareToken,
+          p_name: name,
+          p_home_currency: home,
+          p_travel_currencies: travel
+        });
+        if (updErr) {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save Changes'; }
+          console.error('Could not save trip changes to Supabase', updErr);
+          alert('Could not save trip changes — check your connection and try again.\n\n' + updErr.message);
+          return;
+        }
+
+        const idToName = {};
+        Object.entries(t.memberIds || {}).forEach(([nm, mid]) => { idToName[mid] = nm; });
+
+        const rows = Array.from(document.querySelectorAll('#mateList .mate-row'));
+        const seenIds = new Set();
+        let mateErr = null;
+        for (const row of rows) {
+          const input = row.querySelector('input');
+          const value = input ? input.value.trim() : '';
+          const memberId = row.dataset.memberId || '';
+          if (!value) continue;
+          if (memberId) {
+            seenIds.add(memberId);
+            if (idToName[memberId] !== value) {
+              const { error } = await sb.rpc('update_trip_member_by_token', {
+                p_token: t.shareToken, p_member_id: memberId, p_display_name: value
+              });
+              if (error) mateErr = error;
+            }
+          } else {
+            const { error } = await sb.rpc('add_trip_member_by_token', {
+              p_token: t.shareToken, p_display_name: value
+            });
+            if (error) mateErr = error;
+          }
+        }
+        // Anyone previously on the trip with no matching row left = removed.
+        for (const [, mid] of Object.entries(t.memberIds || {})) {
+          if (!seenIds.has(mid)) {
+            const { error } = await sb.rpc('delete_trip_member_by_token', {
+              p_token: t.shareToken, p_member_id: mid
+            });
+            if (error) mateErr = error;
+          }
+        }
+
+        await reloadTripFromSupabase(t.id);
+        touchTrip(t.id);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save Changes'; }
+
+        if (mateErr) {
+          console.error('Some trip mate changes could not be saved', mateErr);
+          alert('Trip details were saved, but one of the trip mate changes failed — often because that person already paid for an expense on this trip and can\'t be removed.\n\n' + mateErr.message);
+        }
+        go('dashboard');
+        return;
+      }
+
+      // ── Local-only trip (authenticated-mode demo seeds) ─────
+      t.name = name;
+      t.currencies = { home, travel };
+      if (mates.length) t.mates = mates;
+      touchTrip(t.id);
+      go('dashboard');
+      return;
+    }
+
+    // ── Guest create: this is the flow now wired to the real Supabase
+    // backend (create_guest_trip RPC) instead of only local state. The
+    // authenticated (signed-in) path below is untouched for now — that
+    // needs real Supabase Auth wiring, which is a separate pass.
+    if (!window.isAuthenticated) {
+      const submitBtn = document.getElementById('createTripSubmitBtn');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating…'; }
+
+      const { data, error } = await sb.rpc('create_guest_trip', {
+        p_name: name,
+        p_home_currency: home,
+        p_travel_currencies: travel,
+        p_member_names: mates.length ? mates : ['Alex']
+      });
+
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Trip'; }
+
+      if (error) {
+        console.error('Could not create trip in Supabase', error);
+        alert('Could not create the trip — check your connection and try again.\n\n' + error.message);
+        return;
+      }
+
+      const id = data.trip_id;
+      const trip = {
+        id,
+        link: 'settlr.app/t/' + data.share_token,
+        shareToken: data.share_token,
+        isGuest: true
+      };
+      window.allTrips[id] = trip;
+      window.currentTripId = id;
+
+      // Fetch the trip straight back so trip.memberIds (name -> uuid) is
+      // populated before the user can reach Add Expense / Settle Up —
+      // create_guest_trip's own response doesn't include member ids.
+      const { data: fullData, error: fetchErr } = await sb.rpc('get_trip_by_token', { p_token: data.share_token });
+      if (fetchErr) {
+        console.error('Trip was created but could not be re-fetched', fetchErr);
+        trip.name = name;
+        trip.mates = mates.length ? mates : ['Alex'];
+        trip.currencies = { home, travel };
+        trip.expenses = [];
+        trip.settledHistory = [];
+        trip.memberIds = {};
+      } else {
+        applySupabaseTripData(trip, fullData);
+      }
+      // Without this, a brand-new guest trip never gets written to
+      // IndexedDB — touchTrip() is what saveGuestTrip() hangs off of,
+      // and until now nothing called it on first creation, so the trip
+      // never showed up in "Your Trips on This Device" despite existing
+      // fine in Supabase (bill creation already had this call; trips didn't).
+      touchTrip(id);
+
+      document.getElementById('shareTripName').textContent = trip.name + ' is ready';
+      document.getElementById('shareTripLinkUrl').textContent = trip.link;
+      go('sharelinks');
+      return;
+    }
+
+    // ── Authenticated create: a real owned row (owner_user_id set),
+    // written directly since create_guest_trip has no owner param — the
+    // trips_insert_self_owned RLS policy (0002) authorizes this because
+    // owner_user_id matches auth.uid(). It still gets a share_token like
+    // every trip, so once loaded below it flows through the exact same
+    // guest-RPC mutation code every other trip on this page uses.
+    {
+      const submitBtn = document.getElementById('createTripSubmitBtn');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating…'; }
+
+      const uid = window.authSession && window.authSession.user && window.authSession.user.id;
+      const { data: tripRow, error: tripErr } = await sb.from('trips').insert({
+        name, home_currency: home, travel_currencies: travel, owner_user_id: uid
+      }).select().single();
+
+      if (tripErr) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Trip'; }
+        console.error('Could not create trip in Supabase', tripErr);
+        alert('Could not create the trip — check your connection and try again.\n\n' + tripErr.message);
+        return;
+      }
+
+      const memberNames = mates.length ? mates : ['Alex'];
+      const { error: memberErr } = await sb.from('trip_members')
+        .insert(memberNames.map(n => ({ trip_id: tripRow.id, display_name: n })));
+      if (memberErr) console.error('Trip was created but adding mates failed', memberErr);
+
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Trip'; }
+
+      const trip = {
+        id: tripRow.id,
+        link: 'settlr.app/t/' + tripRow.share_token,
+        shareToken: tripRow.share_token,
+        isGuest: false,
+        isAccountTrip: true
+      };
+      window.allTrips[trip.id] = trip;
+      window.currentTripId = trip.id;
+
+      const { data: fullData, error: fetchErr } = await sb.rpc('get_trip_by_token', { p_token: tripRow.share_token });
+      if (fetchErr) {
+        console.error('Trip was created but could not be re-fetched', fetchErr);
+        trip.name = name;
+        trip.mates = memberNames;
+        trip.currencies = { home, travel };
+        trip.expenses = [];
+        trip.settledHistory = [];
+        trip.memberIds = {};
+      } else {
+        applySupabaseTripData(trip, fullData);
+      }
+
+      document.getElementById('shareTripName').textContent = trip.name + ' is ready';
+      document.getElementById('shareTripLinkUrl').textContent = trip.link;
+      go('sharelinks');
+    }
+  }
+
+  // ---- Join a trip from a pasted link ----
+  // Wired to the real backend: pulls the share token out of whatever
+  // the user pasted (a full "settlr.app/t/<token>" link, a full URL
+  // with protocol, or just the bare token), looks the trip up via
+  // get_trip_by_token, and loads its real expenses/settlements too via
+  // the same applySupabaseTripData() adapter used after create.
+  async function joinTripFromLink() {
+    const linkInput = document.getElementById('joinLinkInput');
+    const linkVal = (linkInput && linkInput.value.trim()) || '';
+    if (!linkVal) return;
+
+    const token = linkVal.replace(/^https?:\/\//i, '').split('/').filter(Boolean).pop() || linkVal;
+
+    const joinBtn = document.querySelector('[data-screen="joinlink"] .btn-primary');
+    if (joinBtn) { joinBtn.disabled = true; joinBtn.textContent = 'Joining…'; }
+
+    const { data, error } = await sb.rpc('get_trip_by_token', { p_token: token });
+
+    if (joinBtn) { joinBtn.disabled = false; joinBtn.textContent = 'Continue'; }
+
+    if (error) {
+      console.error('Could not load trip from Supabase', error);
+      alert('Could not find a trip with that link. Double check it and try again.\n\n' + error.message);
+      return;
+    }
+
+    const id = data.trip.id;
+    const trip = {
+      id,
+      link: 'settlr.app/t/' + token,
+      shareToken: token,
+      isGuest: !window.isAuthenticated
+    };
+    applySupabaseTripData(trip, data);
+    window.allTrips[id] = trip;
+    goToDashboard(id);
+  }
+
+  // ---- Guest trips, stored locally per-device via IndexedDB ----
+  // (no server account in guest mode, so this is the only place the list can live)
+  const GUEST_DB_NAME = 'settlr-guest';
+  const GUEST_DB_VERSION = 1;
+  const GUEST_STORE = 'trips';
+
+  function openGuestTripsDB() {
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('IndexedDB not supported')); return; }
+      const req = indexedDB.open(GUEST_DB_NAME, GUEST_DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(GUEST_STORE)) {
+          db.createObjectStore(GUEST_STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function saveGuestTrip(trip) {
+    try {
+      const db = await openGuestTripsDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(GUEST_STORE, 'readwrite');
+        tx.objectStore(GUEST_STORE).put(trip);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (err) {
+      console.warn('Could not save guest trip to IndexedDB', err);
+    }
+  }
+
+  async function getGuestTrips() {
+    try {
+      const db = await openGuestTripsDB();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(GUEST_STORE, 'readonly');
+        const req = tx.objectStore(GUEST_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (err) {
+      console.warn('Could not read guest trips from IndexedDB', err);
+      return [];
+    }
+  }
+
+  // Shared by trip and bill deletion — same store, same keyPath.
+  async function deleteGuestRecord(id) {
+    try {
+      const db = await openGuestTripsDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(GUEST_STORE, 'readwrite');
+        tx.objectStore(GUEST_STORE).delete(id);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (err) {
+      console.warn('Could not delete guest record from IndexedDB', err);
+    }
+  }
+
+  // ---- Generic confirm dialog ----
+  // Used for any destructive action (deleting a trip or bill) that needs a
+  // "are you sure?" step. The confirm button's click handler is swapped out
+  // fresh each time via cloneNode so callbacks never stack up.
+  function showConfirm(title, desc, onConfirm) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmDesc').textContent = desc;
+    const oldBtn = document.getElementById('confirmActionBtn');
+    const newBtn = oldBtn.cloneNode(true);
+    oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+    newBtn.addEventListener('click', () => { closeConfirm(); onConfirm(); });
+    document.getElementById('confirmOverlay').style.display = 'flex';
+  }
+
+  function closeConfirm() {
+    document.getElementById('confirmOverlay').style.display = 'none';
+  }
+
+  // ---- Delete a trip or bill, with a warning first ----
+  function confirmDeleteItem(type, id) {
+    if (!id) return;
+    const record = type === 'trip' ? window.allTrips[id] : window.allBills[id];
+    if (!record) return;
+    const label = type === 'trip' ? 'trip' : 'bill split';
+    showConfirm(
+      `Delete this ${label}?`,
+      `This permanently removes "${record.name}" and everything in it. This can't be undone.`,
+      () => deleteItem(type, id)
+    );
+  }
+
+  async function deleteItem(type, id) {
+    const store = type === 'trip' ? window.allTrips : window.allBills;
+    const record = store[id];
+    if (!record) return;
+
+    // Supabase-backed record: delete server-side first. If this fails,
+    // bail out entirely rather than deleting the local copy of a trip/bill
+    // that's still alive in the database.
+    if (record.shareToken) {
+      const rpcName = type === 'trip' ? 'delete_trip_by_token' : 'delete_bill_by_token';
+      const { error } = await sb.rpc(rpcName, { p_token: record.shareToken });
+      if (error) {
+        console.error(`Could not delete this ${type} in Supabase`, error);
+        alert(`Could not delete this ${type === 'trip' ? 'trip' : 'bill split'} — check your connection and try again.\n\n` + error.message);
+        return;
+      }
+    }
+
+    const wasGuest = record.isGuest;
+    delete store[id];
+
+    if (type === 'trip') {
+      if (window.currentTripId === id) window.currentTripId = null;
+      if (window.editingTripId === id) window.editingTripId = null;
+    } else if (window.currentBillId === id) {
+      window.currentBillId = null;
+    }
+
+    if (wasGuest) await deleteGuestRecord(id);
+
+    // Refresh every list that could reference this record — screens not
+    // currently on-screen still exist in the DOM, so this is safe.
+    renderTripsList();
+    renderAccountBillsList();
+    renderGuestTripsList();
+    renderGuestBillsList();
+
+    // If the deleted trip/bill was the one open on screen, back out to
+    // the relevant "Where to next" list instead of leaving a dead view.
+    const activeScreen = document.querySelector('.screen.active');
+    const activeName = activeScreen && activeScreen.dataset.screen;
+    const deadScreens = type === 'trip'
+      ? ['dashboard', 'createtrip', 'addexpense', 'settleup', 'stats', 'allexpenses', 'tripinfo']
+      : ['billsplitdashboard', 'billsplitadditem', 'billsplitsettle', 'billsplitshare'];
+    if (deadScreens.includes(activeName)) {
+      go(window.isAuthenticated ? 'accounthome' : 'guest');
+    }
+  }
+
+  function relativeTime(ts) {
+    const mins = Math.floor((Date.now() - ts) / 60000);
+    if (mins < 1) return 'Updated just now';
+    if (mins < 60) return `Updated ${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `Updated ${hrs}h ago`;
+    return `Updated ${Math.floor(hrs / 24)}d ago`;
+  }
+
+  // Guest trips live in IndexedDB between sessions; each record stores a
+  // full snapshot of the trip under `.data`. On every visit to the Guest
+  // Mode screen we hydrate window.allTrips from those snapshots so a card
+  // click can route straight into that trip's own dashboard.
+  async function renderGuestTripsList() {
+    const list = document.getElementById('guestTripsList');
+    const records = (await getGuestTrips()).filter(r => r.type !== 'bill' && r.data);
+    records.sort((a, b) => b.updatedAt - a.updatedAt);
+    records.forEach(r => {
+      window.allTrips[r.id] = { ...cloneData(r.data), id: r.id, isGuest: true, updatedAt: r.updatedAt };
+    });
+    if (!records.length) {
+      list.innerHTML = '<p class="guest-trips-empty" id="guestTripsEmpty">No trips on this device yet — start or join one above.</p>';
+      return;
+    }
+    list.innerHTML = records.map(r => {
+      const t = window.allTrips[r.id];
+      const total = t.expenses.reduce((sum, e) => sum + convertAmount(e.amount, e.currency, t.currencies.home), 0);
+      return `
+        <div class="trip-card" onclick="goToDashboard('${r.id}')">
+          <div class="trip-card-icon"><span style="font-weight:800;">$</span></div>
+          <div style="flex:1;">
+            <p class="trip-card-name">${t.name}</p>
+            <p class="trip-card-sub">${relativeTime(r.updatedAt)}</p>
+          </div>
+          <div class="trip-card-balance neutral">${formatMoney(total, t.currencies.home)}</div>
+          <button class="icon-btn card-delete-btn" onclick="event.stopPropagation(); confirmDeleteItem('trip', '${r.id}')" title="Delete trip">${svgIcon('trash', 14)}</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ---- Route straight into a specific trip's own dashboard ----
+  // For Supabase-backed trips, always refresh from the real backend
+  // first — a trip opened from "Your Trips on This Device" was
+  // hydrated from whatever IndexedDB happened to have cached (which
+  // can be a stale/older snapshot, e.g. one saved before memberIds
+  // existed), and Add Expense / Settle Up both need a current
+  // memberIds map to translate names to the backend's member ids.
+  async function goToDashboard(tripId) {
+    const t = window.allTrips[tripId];
+    if (!t) return;
+    window.currentTripId = tripId;
+    if (t.shareToken) await reloadTripFromSupabase(tripId);
+    go('dashboard');
+  }
+
+  // ══════════════════════════════════════════════════════
+  // Shared category metadata (picker, expense list, stats
+  // all read from this single source so they stay in sync)
+  // ══════════════════════════════════════════════════════
+  const CATEGORY_META = {
+    lodging:    { label: 'Lodging',    icon: 'bed',      color: 'var(--accent)' },
+    food:       { label: 'Food',       icon: 'utensils', color: 'var(--success)' },
+    transport:  { label: 'Transport',  icon: 'car',      color: 'var(--amber)' },
+    shopping:   { label: 'Shopping',   icon: 'shopping', color: '#8B5CF6' },
+    activities: { label: 'Activities', icon: 'ticket',   color: '#EC4899' },
+    other:      { label: 'Other',      icon: 'ellipsis', color: '#64748B' }
+  };
+
+  // ══════════════════════════════════════════════════════
+  // Currency metadata + mock exchange rates (units per 1 USD).
+  // A real build would source these from Frankfurter; here
+  // they just need to be internally consistent so cross-
+  // currency expenses convert sensibly for totals & balances.
+  // ══════════════════════════════════════════════════════
+  const CURRENCY_META = {
+    USD: { name: 'US Dollar',            symbol: '$',    rate: 1 },
+    EUR: { name: 'Euro',                 symbol: '€',    rate: 0.92 },
+    GBP: { name: 'British Pound',        symbol: '£',    rate: 0.79 },
+    JPY: { name: 'Japanese Yen',         symbol: '¥',    rate: 156 },
+    AUD: { name: 'Australian Dollar',    symbol: 'A$',   rate: 1.52 },
+    CAD: { name: 'Canadian Dollar',      symbol: 'C$',   rate: 1.36 },
+    CHF: { name: 'Swiss Franc',          symbol: 'CHF ', rate: 0.88 },
+    CNY: { name: 'Chinese Yuan',         symbol: '¥',    rate: 7.24 },
+    HKD: { name: 'Hong Kong Dollar',     symbol: 'HK$',  rate: 7.82 },
+    SGD: { name: 'Singapore Dollar',     symbol: 'S$',   rate: 1.34 },
+    NZD: { name: 'New Zealand Dollar',   symbol: 'NZ$',  rate: 1.65 },
+    SEK: { name: 'Swedish Krona',        symbol: 'kr ',  rate: 10.4 },
+    NOK: { name: 'Norwegian Krone',      symbol: 'kr ',  rate: 10.6 },
+    DKK: { name: 'Danish Krone',         symbol: 'kr ',  rate: 6.86 },
+    INR: { name: 'Indian Rupee',         symbol: '₹',    rate: 83.4 },
+    IDR: { name: 'Indonesian Rupiah',    symbol: 'Rp ',  rate: 15850 },
+    MYR: { name: 'Malaysian Ringgit',    symbol: 'RM',   rate: 4.71 },
+    THB: { name: 'Thai Baht',            symbol: '฿',    rate: 36.6 },
+    PHP: { name: 'Philippine Peso',      symbol: '₱',    rate: 58.7 },
+    VND: { name: 'Vietnamese Dong',      symbol: '₫',    rate: 25400 },
+    KRW: { name: 'South Korean Won',     symbol: '₩',    rate: 1370 },
+    TWD: { name: 'Taiwan Dollar',        symbol: 'NT$',  rate: 32.4 },
+    AED: { name: 'UAE Dirham',           symbol: 'AED ', rate: 3.67 },
+    SAR: { name: 'Saudi Riyal',          symbol: 'SAR ', rate: 3.75 },
+    ZAR: { name: 'South African Rand',   symbol: 'R',    rate: 18.3 },
+    MXN: { name: 'Mexican Peso',         symbol: 'MX$',  rate: 17.0 },
+    BRL: { name: 'Brazilian Real',       symbol: 'R$',   rate: 5.15 },
+    TRY: { name: 'Turkish Lira',         symbol: '₺',    rate: 32.8 },
+    PLN: { name: 'Polish Zloty',         symbol: 'zł',   rate: 3.98 },
+    EGP: { name: 'Egyptian Pound',       symbol: 'EGP ', rate: 47.6 },
+    ILS: { name: 'Israeli Shekel',       symbol: '₪',    rate: 3.70 },
+    CZK: { name: 'Czech Koruna',         symbol: 'Kč',   rate: 23.4 },
+    HUF: { name: 'Hungarian Forint',     symbol: 'Ft ',  rate: 358 }
+  };
+  const ZERO_DECIMAL_CURRENCIES = ['JPY', 'IDR', 'VND', 'KRW', 'HUF'];
+
+  function formatMoney(amount, currency) {
+    const meta = CURRENCY_META[currency];
+    const symbol = meta ? meta.symbol : currency + ' ';
+    return ZERO_DECIMAL_CURRENCIES.includes(currency)
+      ? symbol + Math.round(amount).toLocaleString()
+      : symbol + amount.toFixed(2);
+  }
+
+  function currencySymbol(currency) {
+    const meta = CURRENCY_META[currency];
+    return meta ? meta.symbol : (currency ? currency + ' ' : '$');
+  }
+
+  // Convert an amount from one currency to another via the USD rates above.
+  function convertAmount(amount, fromCurrency, toCurrency) {
+    if (fromCurrency === toCurrency) return amount;
+    const fromRate = (CURRENCY_META[fromCurrency] || { rate: 1 }).rate;
+    const toRate = (CURRENCY_META[toCurrency] || { rate: 1 }).rate;
+    return (amount / fromRate) * toRate;
+  }
+
+  function populateCurrencySelect(selectEl, selectedCode) {
+    if (!selectEl) return;
+    const codes = Object.keys(CURRENCY_META).sort();
+    selectEl.innerHTML = codes.map(c => `<option value="${c}">${c} — ${CURRENCY_META[c].name}</option>`).join('');
+    selectEl.value = selectedCode && CURRENCY_META[selectedCode] ? selectedCode : 'SGD';
+  }
+
+  // Deterministic pseudo-random 8-char token derived from an id, so every
+  // trip/bill gets its own distinct-looking shareable link instead of a
+  // single hardcoded string.
+  function shortToken(id) {
+    // FNV-1a — diffuses well even for near-identical ids (e.g. two trips
+    // created seconds apart), so links never look like near-duplicates.
+    let h = 0x811c9dc5;
+    for (let i = 0; i < id.length; i++) {
+      h ^= id.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    h = h >>> 0;
+    const hex = h.toString(16).padStart(8, '0');
+    return hex.slice(0, 4) + '-' + hex.slice(4, 8);
+  }
+
+  function cloneData(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  }
+
+  // ══════════════════════════════════════════════════════
+  // Trips — each one is a fully independent record (own
+  // mates, currencies, expenses, settlements, link). Nothing
+  // is shared between trips, and nothing here is shared with
+  // Bill Splits either (see window.allBills further down).
+  // window.currentTripId says which one the dashboard/add-
+  // expense/settle-up/stats screens are currently showing.
+  // ══════════════════════════════════════════════════════
+  window.allTrips = {
+    'trip-demo-1': {
+      id: 'trip-demo-1', name: 'Bali with the crew',
+      mates: ['Alex', 'Jordan', 'Priya'],
+      currencies: { home: 'USD', travel: ['IDR', 'SGD'] },
+      expenses: [
+        { id: 1, description: 'Villa deposit', category: 'lodging', amount: 240.00, currency: 'USD', paidBy: 'Alex', splitLabel: 'Split equally',
+          splits: [{ member: 'Alex', share: 80.00 }, { member: 'Jordan', share: 80.00 }, { member: 'Priya', share: 80.00 }] },
+        { id: 2, description: 'Dinner at Sardine', category: 'food', amount: 1085000, currency: 'IDR', paidBy: 'Priya', splitLabel: 'Split by %',
+          splits: [{ member: 'Alex', share: 434000 }, { member: 'Jordan', share: 325500 }, { member: 'Priya', share: 325500 }] },
+        { id: 3, description: 'Airport transfer', category: 'transport', amount: 43.20, currency: 'SGD', paidBy: 'Jordan', splitLabel: 'Split exact',
+          splits: [{ member: 'Alex', share: 16.20 }, { member: 'Jordan', share: 13.50 }, { member: 'Priya', share: 13.50 }] }
+      ],
+      settledHistory: [], link: 'settlr.app/t/' + shortToken('trip-demo-1'), isGuest: false, isDemo: true, updatedAt: Date.now() - 2 * 3600000
+    },
+    'trip-demo-2': {
+      id: 'trip-demo-2', name: 'Tokyo Spring Trip',
+      mates: ['Alex', 'Sam', 'Riko', 'Wei', 'Noor'],
+      currencies: { home: 'USD', travel: ['JPY'] },
+      expenses: [
+        { id: 1, description: 'Ryokan stay', category: 'lodging', amount: 620.00, currency: 'USD', paidBy: 'Sam', splitLabel: 'Split equally',
+          splits: [{ member: 'Alex', share: 124 }, { member: 'Sam', share: 124 }, { member: 'Riko', share: 124 }, { member: 'Wei', share: 124 }, { member: 'Noor', share: 124 }] },
+        { id: 2, description: 'Ramen crawl', category: 'food', amount: 18500, currency: 'JPY', paidBy: 'Alex', splitLabel: 'Split equally',
+          splits: [{ member: 'Alex', share: 3700 }, { member: 'Sam', share: 3700 }, { member: 'Riko', share: 3700 }, { member: 'Wei', share: 3700 }, { member: 'Noor', share: 3700 }] }
+      ],
+      settledHistory: [], link: 'settlr.app/t/' + shortToken('trip-demo-2'), isGuest: false, isDemo: true, updatedAt: Date.now() - 3 * 86400000
+    },
+    'trip-demo-3': {
+      id: 'trip-demo-3', name: 'Ski Weekend — Andermatt',
+      mates: ['Alex', 'Jonas', 'Elif', 'Marco'],
+      currencies: { home: 'CHF', travel: [] },
+      expenses: [
+        { id: 1, description: 'Chalet rental', category: 'lodging', amount: 1200.00, currency: 'CHF', paidBy: 'Jonas', splitLabel: 'Split equally',
+          splits: [{ member: 'Alex', share: 300 }, { member: 'Jonas', share: 300 }, { member: 'Elif', share: 300 }, { member: 'Marco', share: 300 }] }
+      ],
+      settledHistory: [
+        { from: 'Alex', to: 'Jonas', amount: 300 }, { from: 'Elif', to: 'Jonas', amount: 300 }, { from: 'Marco', to: 'Jonas', amount: 300 }
+      ],
+      link: 'settlr.app/t/' + shortToken('trip-demo-3'), isGuest: false, isDemo: true, updatedAt: Date.now() - 14 * 86400000
+    },
+    'trip-demo-4': {
+      id: 'trip-demo-4', name: 'NYC Girls Trip',
+      mates: ['Alex', 'Bianca', 'Tasha', 'Yuki', 'Ola', 'Frankie'],
+      currencies: { home: 'USD', travel: [] },
+      expenses: [
+        { id: 1, description: 'Broadway tickets', category: 'activities', amount: 540.00, currency: 'USD', paidBy: 'Bianca', splitLabel: 'Split equally',
+          splits: [{ member: 'Alex', share: 90 }, { member: 'Bianca', share: 90 }, { member: 'Tasha', share: 90 }, { member: 'Yuki', share: 90 }, { member: 'Ola', share: 90 }, { member: 'Frankie', share: 90 }] },
+        { id: 2, description: 'Rooftop dinner', category: 'food', amount: 390.00, currency: 'USD', paidBy: 'Alex', splitLabel: 'Split equally',
+          splits: [{ member: 'Alex', share: 65 }, { member: 'Bianca', share: 65 }, { member: 'Tasha', share: 65 }, { member: 'Yuki', share: 65 }, { member: 'Ola', share: 65 }, { member: 'Frankie', share: 65 }] }
+      ],
+      settledHistory: [], link: 'settlr.app/t/' + shortToken('trip-demo-4'), isGuest: false, isDemo: true, updatedAt: Date.now() - 30 * 86400000
+    }
+  };
+  window.currentTripId = 'trip-demo-1';
+
+  function currentTrip() {
+    return window.allTrips[window.currentTripId];
+  }
+
+  // Bumps a trip's updatedAt and, for guest trips, writes the current
+  // in-memory record straight through to IndexedDB — this is what makes
+  // every add/edit/delete action on a trip auto-save.
+  function touchTrip(id) {
+    const t = window.allTrips[id];
+    if (!t) return;
+    t.updatedAt = Date.now();
+    if (t.isGuest) saveGuestTrip({ id, name: t.name, type: 'trip', updatedAt: t.updatedAt, data: cloneData(t) });
+  }
+
+  function updateDashTripSub() {
+    const el = document.getElementById('dashboardTripSub');
+    if (!el) return;
+    const t = currentTrip();
+    const { home, travel } = t.currencies;
+    el.textContent = `${home}${travel.length ? ' · ' + travel.join(', ') : ''} · ${t.mates.length} members`;
+  }
+
+  function renderDashMates() {
+    const el = document.getElementById('dashMatesRow');
+    if (!el) return;
+    const t = currentTrip();
+    el.innerHTML = t.mates.map(m => `<div class="mate-chip"><div class="mate-avatar">${m[0]}</div><span>${m}</span></div>`).join('');
+  }
+
+  const DASHBOARD_EXPENSE_LIMIT = 5;
+
+  function renderExpenseItems(containerId, limit) {
+    const list = document.getElementById(containerId);
+    if (!list) return;
+    const t = currentTrip();
+    const items = limit ? t.expenses.slice(0, limit) : t.expenses;
+    if (!items.length) {
+      list.innerHTML = '<p class="guest-trips-empty">No expenses yet — tap Add Expense to log the first one.</p>';
+      return;
+    }
+    const home = t.currencies.home;
+    list.innerHTML = items.map(e => {
+      const meta = CATEGORY_META[e.category] || CATEGORY_META.other;
+      const showHomeEquivalent = e.currency !== home;
+      return `
+        <div class="expense-item">
+          <div class="expense-icon">${svgIcon(meta.icon, 17)}</div>
+          <div style="flex:1;">
+            <p class="expense-title">${e.description}</p>
+            <p class="expense-sub">Paid by ${e.paidBy} · ${e.splitLabel}</p>
+          </div>
+          <div style="text-align:right;">
+            <p class="expense-amount">${formatMoney(e.amount, e.currency)}</p>
+            ${showHomeEquivalent ? `<p class="expense-amount-sub">${formatMoney(convertAmount(e.amount, e.currency, home), home)}</p>` : ''}
+          </div>
+          <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="editExpense('${e.id}')" title="Edit expense">${svgIcon('pen', 13)}</button>
+          <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="deleteExpense('${e.id}')" title="Delete expense">${svgIcon('trash', 13)}</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Expense ids are strings from onclick either way (a UUID for
+  // Supabase-backed trips, a stringified Date.now() for local-only
+  // ones) but t.expenses[].id may still be a raw number for the
+  // latter — String(...) on both sides keeps the comparison working
+  // regardless of which kind of trip this is.
+  async function deleteExpense(id) {
+    const t = currentTrip();
+    if (t.shareToken) {
+      const { error } = await sb.rpc('delete_expense_by_token', { p_token: t.shareToken, p_expense_id: id });
+      if (error) {
+        console.error('Could not delete expense in Supabase', error);
+        alert('Could not delete the expense — check your connection and try again.\n\n' + error.message);
+        return;
+      }
+      await reloadTripFromSupabase(t.id);
+      renderExpenseList();
+      renderAllExpensesList();
+      renderBalance();
+      return;
+    }
+    const idx = t.expenses.findIndex(e => String(e.id) === String(id));
+    if (idx === -1) return;
+    t.expenses.splice(idx, 1);
+    touchTrip(t.id);
+    renderExpenseList();
+    renderAllExpensesList();
+    renderBalance();
+  }
+
+  function renderExpenseList() {
+    renderExpenseItems('expenseList', DASHBOARD_EXPENSE_LIMIT);
+  }
+
+  function renderAllExpensesList() {
+    renderExpenseItems('allExpensesList', null);
+  }
+
+  // ══════════════════════════════════════════════════════
+  // Add Expense — reads/writes the trip mates list from the
+  // currently open trip (currentTrip().mates) rather than a
+  // fixed global, so each trip's split editor only ever shows
+  // that trip's own people.
+  // ══════════════════════════════════════════════════════
+  let currentSplitType = 'equal';
+  let selectedCategory = 'food';
+  window.selectedSplitMembers = new Set(currentTrip().mates); // everyone in by default
+
+  function renderCategoryGrid() {
+    const grid = document.getElementById('categoryGrid');
+    grid.innerHTML = Object.keys(CATEGORY_META).map(id => {
+      const c = CATEGORY_META[id];
+      return `
+        <button type="button" class="category-chip ${id === selectedCategory ? 'active' : ''}" onclick="selectCategory('${id}')">
+          ${svgIcon(c.icon, 16)}
+          <span>${c.label}</span>
+        </button>
+      `;
+    }).join('');
+  }
+  function selectCategory(id) {
+    selectedCategory = id;
+    renderCategoryGrid();
+  }
+
+  // Add Expense's currency dropdown always reflects the trip's actual
+  // configured currencies — home currency first, then travel currencies —
+  // so an expense can be logged in whichever one the receipt was in.
+  function renderExpenseCurrencyOptions() {
+    const cur = document.getElementById('expCurrency');
+    if (!cur) return;
+    const { home, travel } = currentTrip().currencies;
+    const codes = [home, ...travel.filter(c => c !== home)];
+    cur.innerHTML = codes.map(c => `<option value="${c}">${c}</option>`).join('');
+  }
+
+  function renderExpensePaidByOptions() {
+    const sel = document.getElementById('expPaidBy');
+    if (!sel) return;
+    sel.innerHTML = currentTrip().mates.map(m => `<option value="${m}">${m}</option>`).join('');
+  }
+
+  function resetExpenseForm() {
+    const t = currentTrip();
+    const desc = document.getElementById('expDescription');
+    const amt = document.getElementById('expAmount');
+    const cur = document.getElementById('expCurrency');
+    const paidBy = document.getElementById('expPaidBy');
+    renderExpensePaidByOptions();
+    if (desc) desc.value = '';
+    if (amt) amt.value = '';
+    if (cur) cur.value = t.currencies.home;
+    if (paidBy) paidBy.value = t.mates[0];
+    selectedCategory = 'food';
+    currentSplitType = 'equal';
+    window.selectedSplitMembers = new Set(t.mates);
+    document.querySelectorAll('#splitTypeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  }
+
+  function toggleSplitMember(m) {
+    if (window.selectedSplitMembers.has(m)) {
+      if (window.selectedSplitMembers.size > 1) window.selectedSplitMembers.delete(m);
+    } else {
+      window.selectedSplitMembers.add(m);
+    }
+    renderSplitEditor();
+  }
+
+  function setSplitType(type) {
+    currentSplitType = type;
+    document.querySelectorAll('#splitTypeTabs .tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', ['equal', 'percentage', 'exact'][i] === type);
+    });
+    renderSplitEditor();
+  }
+
+  function renderSplitEditor() {
+    const amountInput = document.getElementById('expAmount');
+    if (!amountInput) return;
+    const amount = parseFloat(amountInput.value) || 0;
+    const curSel = document.getElementById('expCurrency');
+    const currency = (curSel && curSel.value) || currentTrip().currencies.home;
+    const container = document.getElementById('splitEditor');
+    const splitMembers = currentTrip().mates;
+    const selected = splitMembers.filter(m => window.selectedSplitMembers.has(m));
+    const selectedCount = selected.length || 1;
+
+    if (currentSplitType === 'equal') {
+      const share = amount / selectedCount;
+      container.innerHTML = splitMembers.map(m => {
+        const isSel = window.selectedSplitMembers.has(m);
+        return `
+          <div class="split-row ${isSel ? 'selected' : ''}" onclick="toggleSplitMember('${m}')">
+            <div class="mate-avatar">${m[0]}</div>
+            <span class="split-name">${m}</span>
+            <span class="split-value" ${isSel ? '' : 'style="color:var(--text-tertiary); font-weight:600;"'}>${isSel ? formatMoney(share, currency) : 'Not included'}</span>
+          </div>
+        `;
+      }).join('') + `<p class="split-hint">Split equally between ${selected.length} ${selected.length === 1 ? 'person' : 'people'} · tap a name to include or exclude them</p>`;
+    } else if (currentSplitType === 'percentage') {
+      const even = (100 / selectedCount).toFixed(1);
+      container.innerHTML = splitMembers.map(m => {
+        const isSel = window.selectedSplitMembers.has(m);
+        return `
+          <div class="split-row ${isSel ? 'selected' : ''}" onclick="toggleSplitMember('${m}')">
+            <div class="mate-avatar">${m[0]}</div>
+            <span class="split-name">${m}</span>
+            ${isSel
+              ? `<input class="split-input" type="text" inputmode="decimal" value="${even}" data-member="${m}" onclick="event.stopPropagation()" oninput="updateSplitTotal()"><span class="split-unit">%</span><span class="split-computed" data-member="${m}">${formatMoney(amount * even / 100, currency)}</span>`
+              : `<span class="split-value" style="color:var(--text-tertiary); font-weight:600;">Not included</span>`}
+          </div>
+        `;
+      }).join('') + `<p class="split-hint" id="splitTotalHint"></p>`;
+      updateSplitTotal();
+    } else {
+      const even = selectedCount ? (amount / selectedCount).toFixed(2) : '0.00';
+      container.innerHTML = splitMembers.map(m => {
+        const isSel = window.selectedSplitMembers.has(m);
+        return `
+          <div class="split-row ${isSel ? 'selected' : ''}" onclick="toggleSplitMember('${m}')">
+            <div class="mate-avatar">${m[0]}</div>
+            <span class="split-name">${m}</span>
+            ${isSel
+              ? `<span class="split-unit" style="width:auto;">${currencySymbol(currency)}</span><input class="split-input" type="text" inputmode="decimal" value="${even}" data-member="${m}" onclick="event.stopPropagation()" oninput="updateSplitTotal()">`
+              : `<span class="split-value" style="color:var(--text-tertiary); font-weight:600;">Not included</span>`}
+          </div>
+        `;
+      }).join('') + `<p class="split-hint" id="splitTotalHint"></p>`;
+      updateSplitTotal();
+    }
+  }
+
+  // Live-updates the running total hint, and — for % splits — the computed
+  // currency amount preview next to each input, without re-rendering the
+  // whole editor (which would drop focus mid-type).
+  function updateSplitTotal() {
+    const amount = parseFloat(document.getElementById('expAmount').value) || 0;
+    const curSel = document.getElementById('expCurrency');
+    const currency = (curSel && curSel.value) || currentTrip().currencies.home;
+    const inputs = document.querySelectorAll('#splitEditor .split-input');
+    let total = 0;
+    inputs.forEach(i => {
+      const val = parseFloat(i.value) || 0;
+      total += val;
+      if (currentSplitType === 'percentage') {
+        const preview = document.querySelector(`#splitEditor .split-computed[data-member="${i.dataset.member}"]`);
+        if (preview) preview.textContent = formatMoney(amount * val / 100, currency);
+      }
+    });
+    const hint = document.getElementById('splitTotalHint');
+    if (!hint) return;
+    if (currentSplitType === 'percentage') {
+      const ok = Math.abs(total - 100) < 0.05;
+      hint.textContent = ok ? '✓ Adds up to 100%' : `${total.toFixed(1)}% of 100% assigned`;
+      hint.className = 'split-hint ' + (ok ? 'ok' : 'warn');
+    } else {
+      const ok = Math.abs(total - amount) < 0.01;
+      hint.textContent = ok ? '✓ Adds up to the full amount' : `${formatMoney(total, currency)} of ${formatMoney(amount, currency)} assigned`;
+      hint.className = 'split-hint ' + (ok ? 'ok' : 'warn');
+    }
+  }
+
+  function attachReceipt() {
+    if (!window.isAuthenticated) {
+      document.getElementById('receiptLockedNote').style.display = 'block';
+      return;
+    }
+    alert('Opens your photo library to attach a receipt (native file picker in the real app).');
+  }
+
+  const SPLIT_LABELS = { equal: 'Split equally', percentage: 'Split by %', exact: 'Split exact' };
+
+  // Reads what's actually on screen right now — the selected
+  // members and, for %/exact modes, whatever the person typed —
+  // so the saved expense matches what was shown, not a guess.
+  function getCurrentSplits(amount) {
+    const selected = currentTrip().mates.filter(m => window.selectedSplitMembers.has(m));
+    if (!selected.length) return [];
+    if (currentSplitType === 'equal') {
+      const share = amount / selected.length;
+      return selected.map(m => ({ member: m, share }));
+    }
+    if (currentSplitType === 'percentage') {
+      return selected.map(m => {
+        const input = document.querySelector(`#splitEditor .split-input[data-member="${m}"]`);
+        const pct = input ? parseFloat(input.value) || 0 : 0;
+        return { member: m, share: amount * pct / 100 };
+      });
+    }
+    // exact
+    return selected.map(m => {
+      const input = document.querySelector(`#splitEditor .split-input[data-member="${m}"]`);
+      const val = input ? parseFloat(input.value) || 0 : 0;
+      return { member: m, share: val };
+    });
+  }
+
+  async function saveExpense() {
+    const description = (document.getElementById('expDescription').value || '').trim();
+    const amount = parseFloat(document.getElementById('expAmount').value) || 0;
+    const currency = document.getElementById('expCurrency').value;
+    const paidBy = document.getElementById('expPaidBy').value;
+
+    if (!description) {
+      document.getElementById('expDescription').focus();
+      return;
+    }
+    if (amount <= 0) {
+      document.getElementById('expAmount').focus();
+      return;
+    }
+
+    const splits = getCurrentSplits(amount);
+    const splitLabel = SPLIT_LABELS[currentSplitType] || 'Split equally';
+    const t = currentTrip();
+    const isEdit = window.editingExpenseId != null;
+
+    if (t.shareToken) {
+      const saveBtn = document.getElementById('saveExpenseBtn');
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = isEdit ? 'Saving…' : 'Adding…'; }
+
+      // Self-heal: memberIds should already be populated by the time
+      // someone reaches this screen (goToDashboard refreshes it), but
+      // if it's somehow still missing, try one refresh before giving up
+      // rather than silently sending a broken request to the backend.
+      if (!t.memberIds || !t.mates.every(m => t.memberIds[m])) {
+        await reloadTripFromSupabase(t.id);
+      }
+      if (!t.memberIds || !t.memberIds[paidBy] || splits.some(s => !t.memberIds[s.member])) {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Save Changes' : 'Save Expense'; }
+        alert('Could not match one of the trip mates to this trip\'s data. Try reopening the trip and saving again.');
+        return;
+      }
+
+      const paidById = t.memberIds[paidBy];
+      const rpcSplits = splits.map(s => ({
+        trip_member_id: t.memberIds && t.memberIds[s.member],
+        // share_value only really means something for 'percentage' (%
+        // points) — recompute it from the resolved share so the raw
+        // percentage survives a reload. Ignored by the math for other
+        // split types; owed_amount is what actually drives everything.
+        share_value: currentSplitType === 'percentage' ? (amount ? +(s.share / amount * 100).toFixed(4) : 0) : (currentSplitType === 'exact' ? s.share : 0),
+        owed_amount: s.share
+      }));
+
+      const rpcArgs = {
+        p_token: t.shareToken,
+        p_description: description,
+        p_category: selectedCategory,
+        p_amount: amount,
+        p_currency: currency,
+        p_exchange_rate: 1,
+        p_paid_by: paidById,
+        p_split_type: currentSplitType,
+        p_splits: rpcSplits
+      };
+
+      const { error } = isEdit
+        ? await sb.rpc('update_expense_by_token', { ...rpcArgs, p_expense_id: window.editingExpenseId })
+        : await sb.rpc('add_expense_by_token', rpcArgs);
+
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Save Changes' : 'Save Expense'; }
+
+      if (error) {
+        console.error('Could not save expense to Supabase', error);
+        alert('Could not save the expense — check your connection and try again.\n\n' + error.message);
+        return;
+      }
+
+      window.editingExpenseId = null;
+      await reloadTripFromSupabase(t.id);
+      renderExpenseList();
+      renderAllExpensesList();
+      renderBalance();
+      go('dashboard');
+      return;
+    }
+
+    if (isEdit) {
+      const idx = t.expenses.findIndex(e => String(e.id) === String(window.editingExpenseId));
+      if (idx !== -1) {
+        t.expenses[idx] = {
+          ...t.expenses[idx],
+          description, category: selectedCategory, amount, currency, paidBy, splitLabel, splits
+        };
+      }
+      window.editingExpenseId = null;
+    } else {
+      t.expenses.unshift({
+        id: Date.now(),
+        description,
+        category: selectedCategory,
+        amount,
+        currency,
+        paidBy,
+        splitLabel,
+        sub: '',
+        splits
+      });
+    }
+
+    touchTrip(t.id);
+    renderExpenseList();
+    renderAllExpensesList();
+    renderBalance();
+    go('dashboard');
+  }
+
+  // ---- Open Add Expense fresh (clears any in-progress edit) ----
+  function openAddExpense() {
+    window.editingExpenseId = null;
+    go('addexpense');
+  }
+
+  // ---- Open Add Expense pre-filled with an existing expense ----
+  function editExpense(id) {
+    window.editingExpenseId = id;
+    go('addexpense');
+  }
+
+  // ---- Fill the Add Expense form with an existing expense's data ----
+  function applyExpenseToForm(id) {
+    const e = currentTrip().expenses.find(x => String(x.id) === String(id));
+    if (!e) return;
+    document.getElementById('expDescription').value = e.description;
+    document.getElementById('expAmount').value = e.amount;
+    document.getElementById('expCurrency').value = e.currency;
+    document.getElementById('expPaidBy').value = e.paidBy;
+    selectedCategory = e.category;
+    currentSplitType = Object.keys(SPLIT_LABELS).find(k => SPLIT_LABELS[k] === e.splitLabel) || 'equal';
+    window.selectedSplitMembers = new Set((e.splits || []).map(s => s.member));
+    if (!window.selectedSplitMembers.size) window.selectedSplitMembers = new Set(currentTrip().mates);
+    document.querySelectorAll('#splitTypeTabs .tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', ['equal', 'percentage', 'exact'][i] === currentSplitType);
+    });
+    renderCategoryGrid();
+    renderSplitEditor();
+    if (currentSplitType !== 'equal') {
+      (e.splits || []).forEach(s => {
+        const input = document.querySelector(`#splitEditor .split-input[data-member="${s.member}"]`);
+        if (!input) return;
+        input.value = currentSplitType === 'percentage'
+          ? (e.amount ? (s.share / e.amount * 100).toFixed(1) : '0.0')
+          : s.share.toFixed(2);
+      });
+      updateSplitTotal();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════
+  // Settle Up — the ledger
+  //
+  // Nothing here is stored directly. "Who owes whom" is
+  // recomputed from the current trip's own expenses (every
+  // payer is credited what they paid, every split participant
+  // is debited their share — regardless of who paid) plus that
+  // trip's own settledHistory (payments already made, which
+  // adjust the same net balances). Since both live on the trip
+  // record itself, two trips can never see each other's ledger.
+  // ══════════════════════════════════════════════════════
+
+  // All balances are computed in the trip's home currency — each
+  // expense's amount and per-person shares are converted from
+  // whatever currency they were entered in before being netted,
+  // so a $240 USD expense and a Rp 1,085,000 IDR expense combine
+  // correctly instead of just adding the raw numbers together.
+  function computeNetBalances() {
+    const t = currentTrip();
+    const home = t.currencies.home;
+    const net = {};
+    t.mates.forEach(m => { net[m] = 0; });
+    t.expenses.forEach(e => {
+      net[e.paidBy] = (net[e.paidBy] || 0) + convertAmount(e.amount, e.currency, home);
+      (e.splits || []).forEach(s => {
+        net[s.member] = (net[s.member] || 0) - convertAmount(s.share, e.currency, home);
+      });
+    });
+    t.settledHistory.forEach(h => {
+      net[h.from] = (net[h.from] || 0) + h.amount; // they paid it off (already recorded in home currency)
+      net[h.to] = (net[h.to] || 0) - h.amount;     // they've now received it
+    });
+    return net;
+  }
+
+  // Greedy debt simplification: largest creditor paid by largest
+  // debtor until everyone's net balance is zero. Minimizes the
+  // number of payments needed.
+  function getEffectiveSuggestions() {
+    const net = computeNetBalances();
+    const creditors = [];
+    const debtors = [];
+    Object.keys(net).forEach(m => {
+      const v = +net[m].toFixed(2);
+      if (v > 0.005) creditors.push({ member: m, amount: v });
+      else if (v < -0.005) debtors.push({ member: m, amount: -v });
+    });
+    creditors.sort((a, b) => b.amount - a.amount);
+    debtors.sort((a, b) => b.amount - a.amount);
+
+    const suggestions = [];
+    let ci = 0, di = 0;
+    while (ci < creditors.length && di < debtors.length) {
+      const c = creditors[ci], d = debtors[di];
+      const amt = Math.min(c.amount, d.amount);
+      if (amt > 0.005) suggestions.push({ from: d.member, to: c.member, amount: +amt.toFixed(2) });
+      c.amount -= amt;
+      d.amount -= amt;
+      if (c.amount <= 0.005) ci++;
+      if (d.amount <= 0.005) di++;
+    }
+    return suggestions;
+  }
+
+  // ---- Total Spending on the dashboard ----
+  // Deliberately not personalized: the prototype has no way to know
+  // which trip member a given browser session actually is (that needs
+  // linked_user_id / auth.uid() from the real backend), so a "your
+  // balance" figure here would show the same thing to everyone
+  // regardless of who's viewing. The full who-owes-whom breakdown
+  // lives on the Settle Up screen instead, where it's accurate for
+  // any viewer since it isn't tied to a single identity.
+  function renderBalance() {
+    const amountEl = document.getElementById('dashboardBalanceAmount');
+    const subEl = document.getElementById('dashboardBalanceSub');
+    if (!amountEl) return;
+    const t = currentTrip();
+    const home = t.currencies.home;
+    const total = t.expenses.reduce((sum, e) => sum + convertAmount(e.amount, e.currency, home), 0);
+    amountEl.textContent = formatMoney(total, home);
+    amountEl.className = 'balance-amount';
+    const count = t.expenses.length;
+    subEl.textContent = `Across ${count} expense${count === 1 ? '' : 's'} · ${t.mates.length} members`;
+    updateDashTripSub();
+  }
+
+  // Reads the "Settle in" selector — everything on this screen (the
+  // suggested amounts, the settled history, and how a typed-in partial
+  // amount is interpreted) displays/converts through this one currency,
+  // even though the underlying ledger is always kept in the trip's home
+  // currency.
+  function getSelectedSettleCurrency() {
+    const sel = document.getElementById('settleCurrencySelect');
+    return (sel && sel.value) || currentTrip().currencies.home;
+  }
+
+  function renderSettleList() {
+    const list = document.getElementById('settleList');
+    const suggestions = getEffectiveSuggestions();
+    const home = currentTrip().currencies.home;
+    const displayCurrency = getSelectedSettleCurrency();
+    if (!suggestions.length) {
+      list.innerHTML = '<p class="guest-trips-empty">Everyone is settled up.</p>';
+      return;
+    }
+    list.innerHTML = suggestions.map((s, i) => `
+      <div class="settle-card">
+        <div class="settle-card-top">
+          <p class="settle-who"><b>${s.from}</b> owes <b>${s.to}</b></p>
+          <p class="settle-amount">${formatMoney(convertAmount(s.amount, home, displayCurrency), displayCurrency)}</p>
+        </div>
+        <div class="settle-actions">
+          <button class="btn btn-primary btn-sm" style="flex:1;" onclick="markSettled(${i})">Mark as Paid in Full</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="togglePartial(${i})">Pay Partially</button>
+        </div>
+        <div class="settle-partial-row" id="partialRow${i}" style="display:none;">
+          <input class="field-input" type="number" id="partialAmount${i}" placeholder="0.00">
+          <span class="split-unit" style="width:auto;">${displayCurrency}</span>
+          <button class="btn btn-primary btn-sm" onclick="confirmPartial(${i})">Confirm</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function togglePartial(i) {
+    const row = document.getElementById('partialRow' + i);
+    row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+  }
+
+  function confirmPartial(i) {
+    const s = getEffectiveSuggestions()[i];
+    if (!s) return;
+    const input = document.getElementById('partialAmount' + i);
+    const amt = parseFloat(input.value);
+    if (!amt || amt <= 0) { input.focus(); return; }
+    const home = currentTrip().currencies.home;
+    const paidCurrency = getSelectedSettleCurrency();
+    const amtInHome = convertAmount(amt, paidCurrency, home);
+    recordSettlement(s.from, s.to, Math.min(amtInHome, s.amount));
+  }
+
+  function markSettled(i) {
+    const s = getEffectiveSuggestions()[i];
+    if (!s) return;
+    recordSettlement(s.from, s.to, s.amount);
+  }
+
+  async function recordSettlement(from, to, amount) {
+    const t = currentTrip();
+    const roundedAmount = +amount.toFixed(2);
+
+    if (t.shareToken) {
+      if (!t.memberIds || !t.memberIds[from] || !t.memberIds[to]) {
+        await reloadTripFromSupabase(t.id);
+      }
+      if (!t.memberIds || !t.memberIds[from] || !t.memberIds[to]) {
+        alert('Could not match one of the trip mates to this trip\'s data. Try reopening the trip and settling again.');
+        return;
+      }
+      const fromId = t.memberIds[from];
+      const toId = t.memberIds[to];
+      const { error } = await sb.rpc('record_settlement_by_token', {
+        p_token: t.shareToken,
+        p_from_member: fromId,
+        p_to_member: toId,
+        p_amount: roundedAmount,
+        p_currency: t.currencies.home
+      });
+      if (error) {
+        console.error('Could not record settlement in Supabase', error);
+        alert('Could not record the settlement — check your connection and try again.\n\n' + error.message);
+        return;
+      }
+      await reloadTripFromSupabase(t.id);
+      renderSettleList();
+      renderSettledHistory();
+      renderBalance();
+      return;
+    }
+
+    t.settledHistory.unshift({ from, to, amount: roundedAmount });
+    touchTrip(t.id);
+    renderSettleList();
+    renderSettledHistory();
+    renderBalance();
+  }
+
+  function renderSettledHistory() {
+    const list = document.getElementById('settledHistoryList');
+    const t = currentTrip();
+    if (!t.settledHistory.length) {
+      list.innerHTML = '<p class="guest-trips-empty">No settlements yet.</p>';
+      return;
+    }
+    const home = t.currencies.home;
+    const displayCurrency = getSelectedSettleCurrency();
+    list.innerHTML = t.settledHistory.map((h, i) => `
+      <div class="settle-card" style="opacity:0.75;">
+        <div class="settle-card-top">
+          <p class="settle-who"><b>${h.from}</b> paid <b>${h.to}</b></p>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <p class="settle-amount" style="color:var(--success);">${formatMoney(convertAmount(h.amount, home, displayCurrency), displayCurrency)}</p>
+            <button class="icon-btn" style="width:28px; height:28px;" onclick="revertSettlement(${i})" title="Undo this settlement">
+              ${svgIcon('trash', 13)}
+            </button>
+          </div>
+        </div>
+        <p class="split-hint">Just now</p>
+      </div>
+    `).join('');
+  }
+
+  async function revertSettlement(i) {
+    // Suggestions are always derived live from a trip's own expenses +
+    // settledHistory, so undoing a settlement is just removing its record —
+    // the debt it covered reappears in Settle Up (and the balance) automatically.
+    const t = currentTrip();
+    const h = t.settledHistory[i];
+    if (!h) return;
+
+    if (t.shareToken && h.id) {
+      const { error } = await sb.rpc('delete_settlement_by_token', { p_token: t.shareToken, p_settlement_id: h.id });
+      if (error) {
+        console.error('Could not undo settlement in Supabase', error);
+        alert('Could not undo the settlement — check your connection and try again.\n\n' + error.message);
+        return;
+      }
+      await reloadTripFromSupabase(t.id);
+      renderSettleList();
+      renderSettledHistory();
+      renderBalance();
+      return;
+    }
+
+    t.settledHistory.splice(i, 1);
+    touchTrip(t.id);
+    renderSettleList();
+    renderSettledHistory();
+    renderBalance();
+  }
+
+  // ══════════════════════════════════════════════════════
+  // Stats & Export
+  // ══════════════════════════════════════════════════════
+  // Derived live from the current trip's own expenses so Stats
+  // never drifts out of sync with what's actually on the dashboard.
+  // Every amount is converted to the trip's home currency
+  // before being totaled, so category totals combine expenses
+  // entered in different currencies correctly.
+  function getCategoryTotals() {
+    const t = currentTrip();
+    const home = t.currencies.home;
+    const totals = {};
+    t.expenses.forEach(e => {
+      const key = e.category || 'other';
+      totals[key] = (totals[key] || 0) + convertAmount(e.amount, e.currency, home);
+    });
+    return Object.keys(totals).map(id => ({
+      id,
+      label: (CATEGORY_META[id] || CATEGORY_META.other).label,
+      icon: (CATEGORY_META[id] || CATEGORY_META.other).icon,
+      color: (CATEGORY_META[id] || CATEGORY_META.other).color,
+      amount: totals[id]
+    })).sort((a, b) => b.amount - a.amount);
+  }
+
+  function renderCategoryStats() {
+    const categoryTotals = getCategoryTotals();
+    const total = categoryTotals.reduce((sum, c) => sum + c.amount, 0);
+    const t = currentTrip();
+    const home = t.currencies.home;
+
+    document.getElementById('statsTotalSpent').textContent = formatMoney(total, home);
+    document.getElementById('statsTotalSub').textContent =
+      `Across ${t.expenses.length} expense${t.expenses.length === 1 ? '' : 's'} · ${t.mates.length} members`;
+
+    const list = document.getElementById('categoryStatsList');
+    if (!categoryTotals.length) {
+      list.innerHTML = '<p class="guest-trips-empty">No expenses yet.</p>';
+      return;
+    }
+    list.innerHTML = categoryTotals.map(c => {
+      const pct = total ? (c.amount / total * 100) : 0;
+      return `
+        <div class="stat-row">
+          <div class="stat-row-top">
+            <span class="stat-row-label"><span style="color:${c.color}; display:flex;">${svgIcon(c.icon, 15)}</span>${c.label}</span>
+            <span class="stat-row-amount">${formatMoney(c.amount, home)} · ${pct.toFixed(0)}%</span>
+          </div>
+          <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${pct}%; background:${c.color};"></div></div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function exportCSV() {
+    const t = currentTrip();
+    const home = t.currencies.home;
+    const rows = [['Date', 'Description', 'Category', 'Paid By', 'Amount', 'Currency', `Amount (${home})`]];
+    t.expenses.forEach(e => {
+      const label = (CATEGORY_META[e.category] || CATEGORY_META.other).label;
+      const homeAmount = convertAmount(e.amount, e.currency, home);
+      rows.push(['', e.description, label, e.paidBy, e.amount.toFixed(2), e.currency, homeAmount.toFixed(2)]);
+    });
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'settlr-export.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ══════════════════════════════════════════════════════
+  // Bill Split — a lighter-weight sibling to a full trip.
+  // One receipt, one payer, per-item assignment, plus tax/
+  // service/tip handled at the bill level rather than per
+  // expense. Uses the same currency + icon infrastructure
+  // as the trip flow, and — like trips — each bill is its own
+  // independent record in window.allBills, keyed by id, with
+  // its own mates/items/link. window.currentBillId says which
+  // one the dashboard/add-item/settle-up screens are showing.
+  // ══════════════════════════════════════════════════════
+  window.allBills = {
+    'bill-demo-1': {
+      id: 'bill-demo-1', name: 'Dinner at Nobu', currency: 'USD',
+      mates: ['Alex', 'Jordan', 'Priya'], payer: 'Alex',
+      items: [
+        { id: 1, description: 'Wagyu Steak', amount: 68.00, owedBy: 'Jordan' },
+        { id: 2, description: 'Truffle Pasta', amount: 42.00, owedBy: 'Priya' },
+        { id: 3, description: 'Bottle of Wine', amount: 55.00, owedBy: 'Alex' }
+      ],
+      taxIncluded: false, servicePct: 10, gstOnService: true, tipMode: 'percent', tipPercent: 0, tipExact: 0, gstPct: 9,
+      link: 'settlr.app/b/' + shortToken('bill-demo-1'), isGuest: false, isDemo: true, updatedAt: Date.now() - 86400000
+    }
+  };
+  window.currentBillId = 'bill-demo-1';
+
+  function currentBill() {
+    return window.allBills[window.currentBillId];
+  }
+
+  // Bumps a bill's updatedAt and, for guest bills, writes the current
+  // in-memory record straight through to IndexedDB — every item add/
+  // edit/delete and every tax/tip field change calls this, so nothing
+  // has to be explicitly "saved".
+  function touchBill(id) {
+    const b = window.allBills[id];
+    if (!b) return;
+    b.updatedAt = Date.now();
+    if (b.isGuest) saveGuestTrip({ id, name: b.name, type: 'bill', updatedAt: b.updatedAt, data: cloneData(b) });
+  }
+
+  // ---- Add a person on the Bill Split create screen ----
+  let billMateCount = 2;
+  function addBillMate() {
+    billMateCount++;
+    const wrap = document.createElement('div');
+    wrap.className = 'mate-row';
+    wrap.innerHTML = `
+      <div class="mate-avatar">${String.fromCharCode(64 + billMateCount)}</div>
+      <input class="field-input" type="text" placeholder="Name">
+      <div class="mate-remove" onclick="this.parentElement.remove()">✕</div>
+    `;
+    document.getElementById('billMateList').appendChild(wrap);
+    wrap.querySelector('input').focus();
+  }
+
+  // ---- Create bill split → share link ----
+  // Guest mode is wired to the real Supabase backend (create_guest_bill
+  // RPC), same pattern as submitTripForm's guest-create branch. The
+  // authenticated path stays local-only for now (needs real Supabase
+  // Auth wiring, a separate pass).
+  async function createBillSplit() {
+    const nameInput = document.getElementById('billNameInput');
+    const name = (nameInput && nameInput.value.trim()) || 'Bill Split';
+    const currencySelect = document.getElementById('billCurrencySelect');
+    const currency = (currencySelect && currencySelect.value) || 'SGD';
+    const mateNames = Array.from(document.querySelectorAll('#billMateList .mate-row input'))
+      .map(i => i.value.trim()).filter(Boolean);
+    const mates = mateNames.length ? mateNames : ['Alex'];
+
+    if (!window.isAuthenticated) {
+      const submitBtn = document.getElementById('billCreateSubmitBtn');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating…'; }
+
+      const { data, error } = await sb.rpc('create_guest_bill', {
+        p_name: name,
+        p_currency: currency,
+        p_member_names: mates,
+        p_payer_name: mates[0]
+      });
+
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Bill Split'; }
+
+      if (error) {
+        console.error('Could not create bill split in Supabase', error);
+        alert('Could not create the bill split — check your connection and try again.\n\n' + error.message);
+        return;
+      }
+
+      const id = data.bill_id;
+      const bill = {
+        id,
+        link: 'settlr.app/b/' + data.share_token,
+        shareToken: data.share_token,
+        isGuest: true
+      };
+      window.allBills[id] = bill;
+      window.currentBillId = id;
+
+      // Re-fetch straight away so bill.memberIds (name -> uuid) is populated
+      // before Add Item / the payer selector need to translate a name back
+      // to the backend's member id — create_guest_bill's own response only
+      // returns bill_id/share_token.
+      const { data: fullData, error: fetchErr } = await sb.rpc('get_bill_by_token', { p_token: data.share_token });
+      if (fetchErr) {
+        console.error('Bill was created but could not be re-fetched', fetchErr);
+        bill.name = name;
+        bill.currency = currency;
+        bill.mates = mates;
+        bill.payer = mates[0];
+        bill.items = [];
+        // Matches the bills table's actual column defaults (0005), not
+        // the old local-only mock's defaults, since this fallback only
+        // fires when the record was genuinely created server-side but
+        // the immediate re-fetch failed.
+        bill.taxIncluded = false; bill.servicePct = 0; bill.gstOnService = true;
+        bill.tipMode = 'percent'; bill.tipPercent = 0; bill.tipExact = 0; bill.gstPct = 0;
+        bill.memberIds = {};
+      } else {
+        applySupabaseBillData(bill, fullData);
+      }
+      touchBill(id);
+
+      document.getElementById('billShareName').textContent = bill.name + ' is ready';
+      document.getElementById('billShareLinkUrl').textContent = bill.link;
+      go('billsplitshare');
+      return;
+    }
+
+    // ── Authenticated create: a real owned row (owner_user_id set),
+    // written directly since create_guest_bill has no owner param —
+    // authorized by bills_insert_self_owned (0005) since owner_user_id
+    // matches auth.uid(). Still gets a share_token like every bill, so
+    // it flows through the same guest-RPC item/settings code afterward.
+    {
+      const submitBtn = document.getElementById('billCreateSubmitBtn');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating…'; }
+
+      const uid = window.authSession && window.authSession.user && window.authSession.user.id;
+      const { data: billRow, error: billErr } = await sb.from('bills').insert({
+        name, currency, owner_user_id: uid
+      }).select().single();
+
+      if (billErr) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Bill Split'; }
+        console.error('Could not create bill split in Supabase', billErr);
+        alert('Could not create the bill split — check your connection and try again.\n\n' + billErr.message);
+        return;
+      }
+
+      const { data: memberRows, error: memberErr } = await sb.from('bill_members')
+        .insert(mates.map(n => ({ bill_id: billRow.id, display_name: n })))
+        .select();
+      if (memberErr) console.error('Bill was created but adding people failed', memberErr);
+
+      const payerRow = memberRows && memberRows.find(m => m.display_name === mates[0]);
+      if (payerRow) {
+        const { error: payerErr } = await sb.from('bills').update({ payer_member_id: payerRow.id }).eq('id', billRow.id);
+        if (payerErr) console.error('Could not set the default payer', payerErr);
+      }
+
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Bill Split'; }
+
+      const bill = {
+        id: billRow.id,
+        link: 'settlr.app/b/' + billRow.share_token,
+        shareToken: billRow.share_token,
+        isGuest: false,
+        isAccountBill: true
+      };
+      window.allBills[bill.id] = bill;
+      window.currentBillId = bill.id;
+
+      const { data: fullData, error: fetchErr } = await sb.rpc('get_bill_by_token', { p_token: billRow.share_token });
+      if (fetchErr) {
+        console.error('Bill was created but could not be re-fetched', fetchErr);
+        bill.name = name;
+        bill.currency = currency;
+        bill.mates = mates;
+        bill.payer = mates[0];
+        bill.items = [];
+        // Matches the bills table's actual column defaults (0005), not
+        // the old local-only mock's defaults, since this fallback only
+        // fires when the record was genuinely created server-side but
+        // the immediate re-fetch failed.
+        bill.taxIncluded = false; bill.servicePct = 0; bill.gstOnService = true;
+        bill.tipMode = 'percent'; bill.tipPercent = 0; bill.tipExact = 0; bill.gstPct = 0;
+        bill.memberIds = {};
+      } else {
+        applySupabaseBillData(bill, fullData);
+      }
+
+      document.getElementById('billShareName').textContent = bill.name + ' is ready';
+      document.getElementById('billShareLinkUrl').textContent = bill.link;
+      go('billsplitshare');
+    }
+  }
+
+  function goToBillDashboard() {
+    go('billsplitdashboard');
+  }
+
+  // ---- Bills in this account, most recently updated first ----
+  function renderAccountBillsList() {
+    const list = document.getElementById('accountBillsList');
+    if (!list) return;
+    const bills = Object.values(window.allBills).filter(b => !b.isGuest && !b.isDemo).sort((a, b) => b.updatedAt - a.updatedAt);
+    if (!bills.length) {
+      list.innerHTML = '<p class="guest-trips-empty">No bill splits yet — split a receipt above.</p>';
+      return;
+    }
+    list.innerHTML = bills.map(b => {
+      const totals = computeBillTotalsFor(b);
+      return `
+        <div class="trip-card" onclick="openAccountBill('${b.id}')">
+          <div class="trip-card-icon"><span style="font-weight:800;">$</span></div>
+          <div style="flex:1;">
+            <p class="trip-card-name">${b.name}</p>
+            <p class="trip-card-sub">Paid by ${b.payer} · ${b.items.length} item${b.items.length === 1 ? '' : 's'}</p>
+          </div>
+          <div class="trip-card-balance neutral">${formatMoney(totals.total, b.currency)}</div>
+          <button class="icon-btn card-delete-btn" onclick="event.stopPropagation(); confirmDeleteItem('bill', '${b.id}')" title="Delete bill split">${svgIcon('trash', 14)}</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Refresh from Supabase first, same reasoning as goToDashboard for
+  // trips: a bill opened from a list was hydrated from whatever
+  // IndexedDB/local-state snapshot happened to be cached, which can be
+  // stale or missing memberIds entirely.
+  async function openAccountBill(id) {
+    const b = window.allBills[id];
+    if (!b) return;
+    window.currentBillId = id;
+    if (b.shareToken) await reloadBillFromSupabase(id);
+    go('billsplitdashboard');
+  }
+
+  // ---- Bills saved locally on this device (guest mode) ----
+  // Same hydrate-then-render pattern as renderGuestTripsList: pull every
+  // stored snapshot into window.allBills so a card click can route
+  // straight into that bill's own dashboard.
+  async function renderGuestBillsList() {
+    const list = document.getElementById('guestBillsList');
+    if (!list) return;
+    const records = (await getGuestTrips()).filter(r => r.type === 'bill' && r.data);
+    records.sort((a, b) => b.updatedAt - a.updatedAt);
+    records.forEach(r => {
+      window.allBills[r.id] = { ...cloneData(r.data), id: r.id, isGuest: true, updatedAt: r.updatedAt };
+    });
+    if (!records.length) {
+      list.innerHTML = '<p class="guest-trips-empty" id="guestBillsEmpty">No bill splits on this device yet — start one above.</p>';
+      return;
+    }
+    list.innerHTML = records.map(r => {
+      const b = window.allBills[r.id];
+      const totals = computeBillTotalsFor(b);
+      return `
+        <div class="trip-card" onclick="openGuestBill('${r.id}')">
+          <div class="trip-card-icon"><span style="font-weight:800;">$</span></div>
+          <div style="flex:1;">
+            <p class="trip-card-name">${b.name}</p>
+            <p class="trip-card-sub">${relativeTime(r.updatedAt)}</p>
+          </div>
+          <div class="trip-card-balance neutral">${formatMoney(totals.total, b.currency)}</div>
+          <button class="icon-btn card-delete-btn" onclick="event.stopPropagation(); confirmDeleteItem('bill', '${r.id}')" title="Delete bill split">${svgIcon('trash', 14)}</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function openGuestBill(id) {
+    const b = window.allBills[id];
+    if (!b) return;
+    window.currentBillId = id;
+    if (b.shareToken) await reloadBillFromSupabase(id);
+    go('billsplitdashboard');
+  }
+
+  // ---- Bill Split dashboard ----
+  function renderBillDashboard() {
+    const d = currentBill();
+    document.getElementById('billDashboardName').textContent = d.name;
+    document.getElementById('billDashboardSub').textContent = `Receipt currency ${d.currency} · ${d.mates.length} people`;
+
+    const payerSelect = document.getElementById('billPayerSelect');
+    payerSelect.innerHTML = d.mates.map(m => `<option value="${m}">${m}</option>`).join('');
+    payerSelect.value = d.payer;
+
+    document.querySelectorAll('#billTaxIncludedTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0) === d.taxIncluded));
+    document.getElementById('billTaxFields').style.display = d.taxIncluded ? 'none' : 'block';
+    document.getElementById('billServicePct').value = d.servicePct;
+    document.getElementById('billTipValue').value = d.tipMode === 'percent' ? d.tipPercent : d.tipExact;
+    document.getElementById('billGstPct').value = d.gstPct;
+    document.querySelectorAll('#billTipModeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0) === (d.tipMode === 'percent')));
+    document.querySelectorAll('#billGstOnServiceTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0) === (d.gstOnService !== false)));
+
+    renderBillItems();
+    recalcBillTotals();
+  }
+
+  function setBillPayer(name) {
+    const d = currentBill();
+    d.payer = name;
+    touchBill(d.id);
+    scheduleBillSettingsSave(d);
+    recalcBillTotals();
+  }
+
+  function renderBillItems() {
+    const d = currentBill();
+    const list = document.getElementById('billItemsList');
+    if (!list) return;
+    if (!d.items.length) {
+      list.innerHTML = '<p class="guest-trips-empty">No items yet — tap Add Item to log the first one.</p>';
+      return;
+    }
+    list.innerHTML = d.items.map(it => `
+      <div class="expense-item">
+        <div class="mate-avatar" style="flex-shrink:0;">${it.owedBy[0]}</div>
+        <div style="flex:1;">
+          <p class="expense-title">${it.description}</p>
+          <p class="expense-sub">Payable by ${it.owedBy}</p>
+        </div>
+        <div style="text-align:right;">
+          <p class="expense-amount">${formatMoney(it.amount, d.currency)}</p>
+        </div>
+        <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="editBillItem('${it.id}')" title="Edit item">${svgIcon('pen', 13)}</button>
+        <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="deleteBillItem('${it.id}')" title="Delete item">${svgIcon('trash', 13)}</button>
+      </div>
+    `).join('');
+  }
+
+  async function deleteBillItem(id) {
+    const d = currentBill();
+
+    if (d.shareToken) {
+      const { error } = await sb.rpc('delete_bill_item_by_token', { p_token: d.shareToken, p_item_id: id });
+      if (error) {
+        console.error('Could not delete bill item in Supabase', error);
+        alert('Could not delete this item — check your connection and try again.\n\n' + error.message);
+        return;
+      }
+      await reloadBillFromSupabase(d.id);
+      renderBillItems();
+      recalcBillTotals();
+      return;
+    }
+
+    const idx = d.items.findIndex(it => String(it.id) === String(id));
+    if (idx === -1) return;
+    d.items.splice(idx, 1);
+    touchBill(d.id);
+    renderBillItems();
+    recalcBillTotals();
+  }
+
+  function openAddBillItem() {
+    window.editingBillItemId = null;
+    go('billsplitadditem');
+  }
+
+  function editBillItem(id) {
+    window.editingBillItemId = id;
+    go('billsplitadditem');
+  }
+
+  function prepareBillItemForm() {
+    const d = currentBill();
+    const isEdit = window.editingBillItemId != null;
+    document.getElementById('billItemTitle').textContent = isEdit ? 'Edit Item' : 'Add Item';
+    document.getElementById('billItemSaveBtn').textContent = isEdit ? 'Save Changes' : 'Save Item';
+    document.getElementById('billItemAmountLabel').textContent = `Amount (${d.currency})`;
+
+    const owedBySelect = document.getElementById('billItemOwedBy');
+    owedBySelect.innerHTML = d.mates.map(m => `<option value="${m}">${m}</option>`).join('');
+
+    const descInput = document.getElementById('billItemDescription');
+    const amtInput = document.getElementById('billItemAmount');
+
+    const item = isEdit ? d.items.find(it => String(it.id) === String(window.editingBillItemId)) : null;
+    if (item) {
+      descInput.value = item.description;
+      amtInput.value = item.amount;
+      owedBySelect.value = item.owedBy;
+    } else {
+      descInput.value = '';
+      amtInput.value = '';
+      owedBySelect.value = d.payer;
+    }
+  }
+
+  // Items are auto-saved: every add/edit immediately mutates the bill
+  // record and calls touchBill(), so nothing is lost if the person
+  // navigates away, and the "Your Bills" list always reflects the
+  // latest item list without a separate save step.
+  async function saveBillItem() {
+    const d = currentBill();
+    const description = (document.getElementById('billItemDescription').value || '').trim();
+    const amount = parseFloat(document.getElementById('billItemAmount').value) || 0;
+    const owedBy = document.getElementById('billItemOwedBy').value;
+    const isEdit = window.editingBillItemId != null;
+
+    if (!description) { document.getElementById('billItemDescription').focus(); return; }
+    if (amount <= 0) { document.getElementById('billItemAmount').focus(); return; }
+
+    if (d.shareToken) {
+      const saveBtn = document.getElementById('billItemSaveBtn');
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = isEdit ? 'Saving…' : 'Adding…'; }
+
+      // Self-healing, same guard used for expenses/settlements: a bill
+      // opened from a stale local cache could be missing memberIds.
+      if (!d.memberIds || !d.memberIds[owedBy]) {
+        await reloadBillFromSupabase(d.id);
+      }
+      if (!d.memberIds || !d.memberIds[owedBy]) {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Save Changes' : 'Save Item'; }
+        alert('Could not match that person to this bill\'s data. Try reopening the bill and saving again.');
+        return;
+      }
+      const owedById = d.memberIds[owedBy];
+
+      const { error } = isEdit
+        ? await sb.rpc('update_bill_item_by_token', {
+            p_token: d.shareToken, p_item_id: window.editingBillItemId,
+            p_description: description, p_amount: amount, p_owed_by: owedById
+          })
+        : await sb.rpc('add_bill_item_by_token', {
+            p_token: d.shareToken, p_description: description, p_amount: amount, p_owed_by: owedById
+          });
+
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Save Changes' : 'Save Item'; }
+
+      if (error) {
+        console.error('Could not save bill item to Supabase', error);
+        alert('Could not save this item — check your connection and try again.\n\n' + error.message);
+        return;
+      }
+
+      window.editingBillItemId = null;
+      await reloadBillFromSupabase(d.id);
+      go('billsplitdashboard');
+      return;
+    }
+
+    // ── Local-only bill (authenticated demo seed) ───────────
+    if (isEdit) {
+      const item = d.items.find(it => String(it.id) === String(window.editingBillItemId));
+      if (item) { item.description = description; item.amount = amount; item.owedBy = owedBy; }
+    } else {
+      d.items.push({ id: Date.now(), description, amount, owedBy });
+    }
+
+    window.editingBillItemId = null;
+    touchBill(d.id);
+    go('billsplitdashboard');
+  }
+
+  function setBillTaxIncluded(included) {
+    const d = currentBill();
+    d.taxIncluded = included;
+    document.querySelectorAll('#billTaxIncludedTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0) === included));
+    document.getElementById('billTaxFields').style.display = included ? 'none' : 'block';
+    touchBill(d.id);
+    scheduleBillSettingsSave(d);
+    recalcBillTotals();
+  }
+
+  function setBillTipMode(mode) {
+    const d = currentBill();
+    const valInput = document.getElementById('billTipValue');
+    const val = parseFloat(valInput.value) || 0;
+    if (d.tipMode === 'percent') d.tipPercent = val; else d.tipExact = val;
+    d.tipMode = mode;
+    document.querySelectorAll('#billTipModeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0) === (mode === 'percent')));
+    valInput.value = mode === 'percent' ? d.tipPercent : d.tipExact;
+    touchBill(d.id);
+    scheduleBillSettingsSave(d);
+    recalcBillTotals();
+  }
+
+  // ---- Whether GST is charged on top of the service tax amount, or
+  // on the item subtotal only. Tip is never part of either base. ----
+  function setBillGstOnService(onService) {
+    const d = currentBill();
+    d.gstOnService = onService;
+    document.querySelectorAll('#billGstOnServiceTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0) === onService));
+    touchBill(d.id);
+    scheduleBillSettingsSave(d);
+    recalcBillTotals();
+  }
+
+  function onBillTaxFieldsChange() {
+    const d = currentBill();
+    d.servicePct = parseFloat(document.getElementById('billServicePct').value) || 0;
+    d.gstPct = parseFloat(document.getElementById('billGstPct').value) || 0;
+    const tipVal = parseFloat(document.getElementById('billTipValue').value) || 0;
+    if (d.tipMode === 'percent') d.tipPercent = tipVal; else d.tipExact = tipVal;
+    touchBill(d.id);
+    scheduleBillSettingsSave(d);
+    recalcBillTotals();
+  }
+
+  // Tax/service/tip are handled at the bill level (not per item) and then
+  // allocated back to each item's payable person proportionally, so the
+  // per-person "amount payable to the payer" always includes their fair
+  // share of tax, service charge and tip — not just their raw item total.
+  //
+  // Tip is always excluded from both the service tax base and the GST
+  // base — it's computed from the item subtotal only, and is itself
+  // never taxed. GST's base is the subtotal, plus the service tax
+  // amount too if gstOnService is on (a per-bill choice, since some
+  // jurisdictions charge GST on top of the service charge and some don't).
+  function computeBillTotalsFor(d) {
+    const subtotal = d.items.reduce((sum, it) => sum + it.amount, 0);
+    let serviceAmt = 0, tipAmt = 0, gstAmt = 0;
+    const gstOnService = d.gstOnService !== false;
+    if (!d.taxIncluded) {
+      serviceAmt = subtotal * (d.servicePct || 0) / 100;
+      tipAmt = d.tipMode === 'percent' ? subtotal * (d.tipPercent || 0) / 100 : (d.tipExact || 0);
+      const gstBase = subtotal + (gstOnService ? serviceAmt : 0);
+      gstAmt = gstBase * (d.gstPct || 0) / 100;
+    }
+    const total = subtotal + serviceAmt + tipAmt + gstAmt;
+
+    const perPerson = {};
+    d.mates.forEach(m => { perPerson[m] = 0; });
+    d.items.forEach(it => {
+      const itemService = d.taxIncluded ? 0 : it.amount * (d.servicePct || 0) / 100;
+      const itemGstBase = it.amount + (gstOnService ? itemService : 0);
+      const itemGst = d.taxIncluded ? 0 : itemGstBase * (d.gstPct || 0) / 100;
+      const itemTip = (!d.taxIncluded && subtotal > 0) ? (it.amount / subtotal) * tipAmt : 0;
+      perPerson[it.owedBy] = (perPerson[it.owedBy] || 0) + it.amount + itemService + itemGst + itemTip;
+    });
+
+    return { subtotal, serviceAmt, tipAmt, gstAmt, total, perPerson };
+  }
+
+  function computeBillTotals() {
+    return computeBillTotalsFor(currentBill());
+  }
+
+  function recalcBillTotals() {
+    const d = currentBill();
+    const amountEl = document.getElementById('billTotalAmount');
+    if (!amountEl) return;
+    const totals = computeBillTotals();
+    amountEl.textContent = formatMoney(totals.total, d.currency);
+    document.getElementById('billTotalSub').textContent = `${d.items.length} item${d.items.length === 1 ? '' : 's'}`;
+  }
+
+  function renderBillSettle() {
+    const d = currentBill();
+    const totals = computeBillTotals();
+
+    document.getElementById('billSettleTitle').textContent = d.name;
+    document.getElementById('billSettleDesc').textContent = `Full breakdown, including tax, service & tip. Paid by ${d.payer}.`;
+    document.getElementById('billSettlePayerName').textContent = d.payer;
+
+    const itemsList = document.getElementById('billSettleItemsList');
+    itemsList.innerHTML = d.items.map(it => `
+      <div class="expense-item">
+        <div class="mate-avatar" style="flex-shrink:0;">${it.owedBy[0]}</div>
+        <div style="flex:1;">
+          <p class="expense-title">${it.description}</p>
+          <p class="expense-sub">Payable by ${it.owedBy}</p>
+        </div>
+        <div style="text-align:right;">
+          <p class="expense-amount">${formatMoney(it.amount, d.currency)}</p>
+        </div>
+      </div>
+    `).join('') || '<p class="guest-trips-empty">No items on this bill yet.</p>';
+
+    const breakdown = document.getElementById('billSettleBreakdown');
+    const rows = [
+      ['Subtotal', totals.subtotal],
+      ...(d.taxIncluded ? [] : [
+        [`Service tax (${d.servicePct}%)`, totals.serviceAmt],
+        [d.tipMode === 'percent' ? `Tip (${d.tipPercent}%)` : 'Tip', totals.tipAmt],
+        [`GST (${d.gstPct}%)`, totals.gstAmt]
+      ])
+    ];
+    breakdown.innerHTML = rows.map(([label, amt]) => `
+      <div class="settle-card" style="padding:12px 14px;">
+        <div class="settle-card-top" style="margin:0;">
+          <p class="settle-who">${label}</p>
+          <p class="settle-amount">${formatMoney(amt, d.currency)}</p>
+        </div>
+      </div>
+    `).join('') + `
+      <div class="settle-card" style="padding:12px 14px; border-color:var(--accent);">
+        <div class="settle-card-top" style="margin:0;">
+          <p class="settle-who"><b>Total</b></p>
+          <p class="settle-amount">${formatMoney(totals.total, d.currency)}</p>
+        </div>
+      </div>
+    `;
+
+    const perPersonList = document.getElementById('billSettlePerPerson');
+    const others = d.mates.filter(m => m !== d.payer);
+    if (!others.length) {
+      perPersonList.innerHTML = '<p class="guest-trips-empty">Nobody else owes on this bill.</p>';
+    } else {
+      perPersonList.innerHTML = others.map(m => `
+        <div class="settle-card">
+          <div class="settle-card-top">
+            <p class="settle-who"><b>${m}</b> owes <b>${d.payer}</b></p>
+            <p class="settle-amount">${formatMoney(totals.perPerson[m] || 0, d.currency)}</p>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // ---- Save the settle-up view as a PNG, drawn on a canvas so this
+  // stays self-contained (no external screenshot library/CDN) ----
+  function exportBillScreenshot() {
+    const d = currentBill();
+    const totals = computeBillTotals();
+    const others = d.mates.filter(m => m !== d.payer);
+
+    const lineHeight = 26;
+    const width = 480;
+    const itemsHeight = Math.max(d.items.length, 1) * lineHeight;
+    const breakdownRows = (d.taxIncluded ? 1 : 4) + 1;
+    const height = 130 + itemsHeight + 30 + breakdownRows * lineHeight + 50 + Math.max(others.length, 1) * lineHeight + 30;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(d.name, 24, 40);
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.fillText(`Paid by ${d.payer} · ${d.currency}`, 24, 62);
+
+    let y = 100;
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
+    y += 24;
+
+    ctx.font = '13px sans-serif';
+    d.items.forEach(it => {
+      ctx.fillStyle = '#0f172a';
+      ctx.fillText(`${it.description} (${it.owedBy})`, 24, y);
+      ctx.textAlign = 'right';
+      ctx.fillText(formatMoney(it.amount, d.currency), width - 24, y);
+      ctx.textAlign = 'left';
+      y += lineHeight;
+    });
+
+    y += 4;
+    ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
+    y += 24;
+
+    const rows = [
+      ['Subtotal', totals.subtotal],
+      ...(d.taxIncluded ? [] : [
+        [`Service tax (${d.servicePct}%)`, totals.serviceAmt],
+        ['Tip', totals.tipAmt],
+        [`GST (${d.gstPct}%)`, totals.gstAmt]
+      ])
+    ];
+    rows.forEach(([label, amt]) => {
+      ctx.fillStyle = '#64748b';
+      ctx.fillText(label, 24, y);
+      ctx.textAlign = 'right';
+      ctx.fillText(formatMoney(amt, d.currency), width - 24, y);
+      ctx.textAlign = 'left';
+      y += lineHeight;
+    });
+
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText('Total', 24, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(formatMoney(totals.total, d.currency), width - 24, y);
+    ctx.textAlign = 'left';
+    y += 34;
+
+    ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
+    y += 24;
+
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText(`Payable to ${d.payer}`, 24, y);
+    y += lineHeight;
+    ctx.font = '13px sans-serif';
+    others.forEach(m => {
+      ctx.fillStyle = '#0f172a';
+      ctx.fillText(m, 24, y);
+      ctx.textAlign = 'right';
+      ctx.fillText(formatMoney(totals.perPerson[m] || 0, d.currency), width - 24, y);
+      ctx.textAlign = 'left';
+      y += lineHeight;
+    });
+
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (d.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'bill-split') + '.png';
+    a.click();
+  }
+</script>
 </body>
 </html>
