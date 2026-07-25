@@ -1188,11 +1188,11 @@
           <button class="tab-btn" id="tabCreate" onclick="setAuthTab('create')">Create Account</button>
         </div>
 
-        <button class="oauth-btn">
+        <button class="oauth-btn" id="oauthGoogleBtn" onclick="signInWithOAuthProvider('google')">
           <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.25 1.06-3.71 1.06-2.86 0-5.28-1.93-6.14-4.53H2.18v2.85A11 11 0 0012 23z"/><path fill="#FBBC05" d="M5.86 14.09A6.6 6.6 0 015.5 12c0-.73.13-1.43.36-2.09V7.06H2.18A11 11 0 001 12c0 1.78.43 3.46 1.18 4.94l3.68-2.85z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1a11 11 0 00-9.82 6.06l3.68 2.85c.86-2.6 3.28-4.53 6.14-4.53z"/></svg>
           Continue with Google
         </button>
-        <button class="oauth-btn">
+        <button class="oauth-btn" id="oauthMicrosoftBtn" onclick="signInWithOAuthProvider('azure')">
           <svg viewBox="0 0 24 24"><rect x="2" y="2" width="9" height="9" fill="#F25022"/><rect x="13" y="2" width="9" height="9" fill="#7FBA00"/><rect x="2" y="13" width="9" height="9" fill="#00A4EF"/><rect x="13" y="13" width="9" height="9" fill="#FFB900"/></svg>
           Continue with Microsoft
         </button>
@@ -2299,6 +2299,27 @@
   // actually yours instead of guessing from local state.
   // ══════════════════════════════════════════════════════
   window.authSession = null;
+
+  // Google/Microsoft buttons — this navigates the whole tab away to the
+  // provider's consent screen, then back to this same page. supabase-js
+  // parses the resulting #access_token=... hash automatically on load
+  // (detectSessionInUrl defaults to true), so the session-restore IIFE
+  // below picks it up via getSession() without any extra code here.
+  // Azure specifically needs the 'email' scope requested explicitly, or
+  // Supabase won't get a verified email back from Microsoft's side.
+  async function signInWithOAuthProvider(provider) {
+    const redirectTo = window.location.origin + window.location.pathname;
+    const options = { redirectTo };
+    if (provider === 'azure') options.scopes = 'email';
+
+    const { error } = await sb.auth.signInWithOAuth({ provider, options });
+    if (error) {
+      console.error('OAuth sign-in error', error);
+      alert('Could not start ' + (provider === 'google' ? 'Google' : 'Microsoft') + ' sign-in — ' + error.message);
+    }
+    // On success there's no more code to run — the browser is already
+    // navigating away to the provider's consent screen.
+  }
 
   async function submitAuthForm() {
     const email = (document.getElementById('authEmailInput').value || '').trim();
