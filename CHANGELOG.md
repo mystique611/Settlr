@@ -2,6 +2,19 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-07-26 — Split validation, rate limiting, claim-to-account, bill tax defaults
+
+- New migration `0009_expense_split_validation.sql`: `add_expense_by_token`/`update_expense_by_token` no longer trust the client's per-member `owed_amount` at face value. Equal and percentage splits are recomputed server-side; exact splits are validated to still add up to the expense total, rejecting ones that don't.
+- New migration `0010_rate_limiting.sql`: every anon-facing guest RPC now rate-limits by caller IP (60 requests/5 min for the two bootstrap reads, 30/5 min for every mutation), closing out the last item on the backend's "still to do" list.
+- New migration `0011_bill_tax_defaults.sql`: new bill splits default to Service Tax 10% / GST 9% instead of 0/0, covering both the guest RPC and the authenticated direct-insert creation path via a single column-default change.
+- Wired the "Save to My Account" button (Trip Link / Bill Link screens) to the existing `claim_trip`/`claim_bill` RPCs — shown only when signed in and viewing a guest-created record, and removes the record from this device's local guest list once claimed.
+- Backed up to `260726-v04` before this batch.
+
+## 2026-07-26 — Require at least one mate, payer-initial bill icons
+
+- Create Trip and Create Bill Split now block submission with an alert if no trip mate/person has been added, instead of silently creating the record anyway (trips) or falling back to a hidden "Alex" placeholder (bills).
+- Bill Split cards (in both "Your Bills" and "Your Bills on This Device") and the Bill Split dashboard header now show a colored initial badge for whoever is set as the payer (e.g. "D" for Deniece) instead of the generic "$" mark — updates live if the payer is changed from the dashboard's dropdown. Trip cards/dashboards are unchanged and still show the "$" mark.
+
 ## 2026-07-26 — Landing page rework, Font Awesome icons, guest-list bug fix
 
 - Removed the logo/"Get Started" splash screen entirely — "How do you want to continue?" is now the landing page, with its old "Next" eyebrow label and back button replaced by a plain "Settlr" label (nowhere to go back to anymore).

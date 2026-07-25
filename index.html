@@ -1466,6 +1466,11 @@
           </div>
           <div class="link-url" id="tripInfoLinkUrl">settlr.app/t/8f2a-91cb</div>
         </div>
+
+        <button class="btn btn-secondary" id="claimTripBtn" style="display:none; margin-top:16px;" onclick="claimCurrentTrip()">
+          <i class="fa-solid fa-cloud-arrow-up" style="font-size:15px;"></i>
+          Save to My Account
+        </button>
       </section>
 
       <!-- Bill Split link info, mirrors tripinfo above -->
@@ -1491,6 +1496,11 @@
           </div>
           <div class="link-url" id="billInfoLinkUrl">settlr.app/b/4c1a-77de</div>
         </div>
+
+        <button class="btn btn-secondary" id="claimBillBtn" style="display:none; margin-top:16px;" onclick="claimCurrentBill()">
+          <i class="fa-solid fa-cloud-arrow-up" style="font-size:15px;"></i>
+          Save to My Account
+        </button>
       </section>
 
       <!-- SCREEN 9: Account home (authenticated trip picker) -->
@@ -1636,7 +1646,7 @@
         <div class="dash-scroll">
           <div class="dash-header">
             <div class="dash-trip-row">
-              <div class="dash-trip-icon"><span style="font-weight:800;">$</span></div>
+              <div class="dash-trip-icon" id="billDashboardIcon"><span style="font-weight:800;">?</span></div>
               <div>
                 <p class="dash-trip-name" id="billDashboardName">Dinner at Nobu</p>
                 <p class="dash-trip-sub" id="billDashboardSub">Receipt currency USD</p>
@@ -1903,10 +1913,14 @@
     if (name === 'tripinfo') {
       const t = currentTrip();
       document.getElementById('tripInfoLinkUrl').textContent = t.link;
+      const claimBtn = document.getElementById('claimTripBtn');
+      if (claimBtn) claimBtn.style.display = (window.isAuthenticated && t.isGuest) ? 'flex' : 'none';
     }
     if (name === 'billinfo') {
       const d = currentBill();
       document.getElementById('billInfoLinkUrl').textContent = d.link;
+      const claimBtn = document.getElementById('claimBillBtn');
+      if (claimBtn) claimBtn.style.display = (window.isAuthenticated && d.isGuest) ? 'flex' : 'none';
     }
     if (name === 'allexpenses') renderAllExpensesList();
     if (name === 'addexpense') {
@@ -2451,6 +2465,11 @@
     const mates = Array.from(document.querySelectorAll('#mateList .mate-row input'))
       .map(i => i.value.trim()).filter(Boolean);
 
+    if (!mates.length) {
+      alert('Add at least one trip mate before continuing.');
+      return;
+    }
+
     if (window.editingTripId) {
       const t = window.allTrips[window.editingTripId];
       window.editingTripId = null;
@@ -2547,7 +2566,7 @@
         p_name: name,
         p_home_currency: home,
         p_travel_currencies: travel,
-        p_member_names: mates.length ? mates : ['Alex']
+        p_member_names: mates
       });
 
       if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Trip'; }
@@ -2575,7 +2594,7 @@
       if (fetchErr) {
         console.error('Trip was created but could not be re-fetched', fetchErr);
         trip.name = name;
-        trip.mates = mates.length ? mates : ['Alex'];
+        trip.mates = mates;
         trip.currencies = { home, travel };
         trip.expenses = [];
         trip.settledHistory = [];
@@ -2618,7 +2637,7 @@
         return;
       }
 
-      const memberNames = mates.length ? mates : ['Alex'];
+      const memberNames = mates;
       const { error: memberErr } = await sb.from('trip_members')
         .insert(memberNames.map(n => ({ trip_id: tripRow.id, display_name: n })));
       if (memberErr) console.error('Trip was created but adding mates failed', memberErr);
@@ -3072,6 +3091,33 @@
     if (!t) return;
     t.updatedAt = Date.now();
     if (t.isGuest) saveGuestTrip({ id, name: t.name, type: 'trip', updatedAt: t.updatedAt, data: cloneData(t) });
+  }
+
+  // Attaches a guest-created trip to the signed-in account. Only ever
+  // called from the "Save to My Account" button, which is itself only
+  // shown when window.isAuthenticated && t.isGuest — claim_trip on the
+  // backend re-checks both of those anyway (it needs a session, and it
+  // refuses a trip that's already owned by someone else).
+  async function claimCurrentTrip() {
+    const t = currentTrip();
+    if (!t || !t.shareToken) return;
+    const btn = document.getElementById('claimTripBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    const { error } = await sb.rpc('claim_trip', { p_token: t.shareToken });
+
+    if (error) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up" style="font-size:15px;"></i> Save to My Account'; }
+      console.error('Could not claim trip', error);
+      alert('Could not save this trip to your account — ' + error.message);
+      return;
+    }
+
+    t.isGuest = false;
+    t.isAccountTrip = true;
+    await deleteGuestRecord(t.id);
+    alert('Saved to your account.');
+    go('tripinfo');
   }
 
   function updateDashTripSub() {
@@ -3864,6 +3910,29 @@
     if (b.isGuest) saveGuestTrip({ id, name: b.name, type: 'bill', updatedAt: b.updatedAt, data: cloneData(b) });
   }
 
+  // Mirrors claimCurrentTrip() above, for Bill Split.
+  async function claimCurrentBill() {
+    const d = currentBill();
+    if (!d || !d.shareToken) return;
+    const btn = document.getElementById('claimBillBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    const { error } = await sb.rpc('claim_bill', { p_token: d.shareToken });
+
+    if (error) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up" style="font-size:15px;"></i> Save to My Account'; }
+      console.error('Could not claim bill', error);
+      alert('Could not save this bill split to your account — ' + error.message);
+      return;
+    }
+
+    d.isGuest = false;
+    d.isAccountBill = true;
+    await deleteGuestRecord(d.id);
+    alert('Saved to your account.');
+    go('billinfo');
+  }
+
   // ---- Add a person on the Bill Split create screen ----
   let billMateCount = 2;
   function addBillMate() {
@@ -3891,7 +3960,12 @@
     const currency = (currencySelect && currencySelect.value) || 'SGD';
     const mateNames = Array.from(document.querySelectorAll('#billMateList .mate-row input'))
       .map(i => i.value.trim()).filter(Boolean);
-    const mates = mateNames.length ? mateNames : ['Alex'];
+
+    if (!mateNames.length) {
+      alert('Add at least one person before continuing.');
+      return;
+    }
+    const mates = mateNames;
 
     if (!window.isAuthenticated) {
       const submitBtn = document.getElementById('billCreateSubmitBtn');
@@ -3934,12 +4008,12 @@
         bill.mates = mates;
         bill.payer = mates[0];
         bill.items = [];
-        // Matches the bills table's actual column defaults (0005), not
-        // the old local-only mock's defaults, since this fallback only
-        // fires when the record was genuinely created server-side but
-        // the immediate re-fetch failed.
-        bill.taxIncluded = false; bill.servicePct = 0; bill.gstOnService = true;
-        bill.tipMode = 'percent'; bill.tipPercent = 0; bill.tipExact = 0; bill.gstPct = 0;
+        // Matches the bills table's actual column defaults (0005, tax
+        // rates updated in 0011), not the old local-only mock's
+        // defaults, since this fallback only fires when the record was
+        // genuinely created server-side but the immediate re-fetch failed.
+        bill.taxIncluded = false; bill.servicePct = 10; bill.gstOnService = true;
+        bill.tipMode = 'percent'; bill.tipPercent = 0; bill.tipExact = 0; bill.gstPct = 9;
         bill.memberIds = {};
       } else {
         applySupabaseBillData(bill, fullData);
@@ -4004,12 +4078,12 @@
         bill.mates = mates;
         bill.payer = mates[0];
         bill.items = [];
-        // Matches the bills table's actual column defaults (0005), not
-        // the old local-only mock's defaults, since this fallback only
-        // fires when the record was genuinely created server-side but
-        // the immediate re-fetch failed.
-        bill.taxIncluded = false; bill.servicePct = 0; bill.gstOnService = true;
-        bill.tipMode = 'percent'; bill.tipPercent = 0; bill.tipExact = 0; bill.gstPct = 0;
+        // Matches the bills table's actual column defaults (0005, tax
+        // rates updated in 0011), not the old local-only mock's
+        // defaults, since this fallback only fires when the record was
+        // genuinely created server-side but the immediate re-fetch failed.
+        bill.taxIncluded = false; bill.servicePct = 10; bill.gstOnService = true;
+        bill.tipMode = 'percent'; bill.tipPercent = 0; bill.tipExact = 0; bill.gstPct = 9;
         bill.memberIds = {};
       } else {
         applySupabaseBillData(bill, fullData);
@@ -4038,7 +4112,7 @@
       const totals = computeBillTotalsFor(b);
       return `
         <div class="trip-card" onclick="openAccountBill('${b.id}')">
-          <div class="trip-card-icon"><span style="font-weight:800;">$</span></div>
+          <div class="trip-card-icon"><span style="font-weight:800;">${(b.payer || '?')[0].toUpperCase()}</span></div>
           <div style="flex:1;">
             <p class="trip-card-name">${b.name}</p>
             <p class="trip-card-sub">Paid by ${b.payer} · ${b.items.length} item${b.items.length === 1 ? '' : 's'}</p>
@@ -4083,7 +4157,7 @@
       const totals = computeBillTotalsFor(b);
       return `
         <div class="trip-card" onclick="openGuestBill('${r.id}')">
-          <div class="trip-card-icon"><span style="font-weight:800;">$</span></div>
+          <div class="trip-card-icon"><span style="font-weight:800;">${(b.payer || '?')[0].toUpperCase()}</span></div>
           <div style="flex:1;">
             <p class="trip-card-name">${b.name}</p>
             <p class="trip-card-sub">${relativeTime(r.updatedAt)}</p>
@@ -4108,6 +4182,8 @@
     const d = currentBill();
     document.getElementById('billDashboardName').textContent = d.name;
     document.getElementById('billDashboardSub').textContent = `Receipt currency ${d.currency} · ${d.mates.length} people`;
+    document.getElementById('billDashboardIcon').innerHTML =
+      `<span style="font-weight:800;">${(d.payer || '?')[0].toUpperCase()}</span>`;
 
     const payerSelect = document.getElementById('billPayerSelect');
     payerSelect.innerHTML = d.mates.map(m => `<option value="${m}">${m}</option>`).join('');
@@ -4131,6 +4207,8 @@
     touchBill(d.id);
     scheduleBillSettingsSave(d);
     recalcBillTotals();
+    const icon = document.getElementById('billDashboardIcon');
+    if (icon) icon.innerHTML = `<span style="font-weight:800;">${(name || '?')[0].toUpperCase()}</span>`;
   }
 
   function renderBillItems() {
