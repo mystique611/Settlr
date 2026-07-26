@@ -1,0 +1,13 @@
+# Supabase CLI local state — machine-local cache/metadata, not portable,
+# regenerated automatically by `supabase link` / `supabase db push`.
+backend/supabase/.temp/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+*.swp
+
+# In case any future tooling introduces these
+node_modules/
+.env
+.env.*

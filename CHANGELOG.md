@@ -2,6 +2,23 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-07-26 — Receipt photo uploads, "Start a New Trip" icon fix
+
+- New migrations `0014_expense_receipts.sql` and `0015_receipt_storage_bucket.sql`: `add_expense_by_token`/`update_expense_by_token` can now record a receipt's Storage path, and a private `receipts` bucket (RLS: everyone can only touch their own user-id folder) backs it. `0015` isn't testable via the project's pglite harness (no `storage` schema in a bare embedded Postgres) — verify live after deploying.
+- Add/Edit Expense's "Attach Receipt Photo" now opens a real file picker and uploads straight to Storage as soon as a photo's chosen, with a View/Remove row once one's attached. Authenticated only, matching the column's original "authenticated accounts only" design intent from `0001`. Expenses with a receipt get a paperclip icon in the expense list to reopen it.
+- Fixed "Start a New Trip"'s row icon (guest screen and "Where to next?") — was still the generic `fa-plus` create icon; now the same plane mark used on the trip dashboard, matching "Split a Bill"'s receipt icon (which was already correct).
+- Backed up to `260726-v07` — taken after this batch rather than before it: these landed as follow-up bug reports mid-session, on top of an edit session already in progress and already confirmed, rather than as a new request that should have paused for a fresh backup prompt first.
+
+## 2026-07-26 — Real clickable share links, join/edit navigation fixes
+
+- Trip and bill links are now real URLs built from wherever the app is actually hosted (`?t=<token>` / `?b=<token>`) instead of a cosmetic, non-functional "settlr.app/..." string. Opening one loads that trip/bill straight to its dashboard on boot — no more manually copying the token into "Join a Trip".
+- Fixed `joinTripFromLink()`: joining a trip while signed in previously left it in a broken in-between state — not marked guest, but never actually claimed server-side, so it showed up in no list and had no "Save to My Account" button. It now correctly stays in guest state (visible under "Your Trips on This Device", with the claim button available) unless the trip is already owned by the signed-in user. The same logic now backs bill links too, via a new `openBillByToken()` (bills previously had no token-based join path at all).
+- Fixed Back from Edit Trip / Edit Bill: it previously always exited to the account/guest list, even when you'd opened Edit from a specific trip or bill's own dashboard. It now returns to that same dashboard instead, and clears the editing-id state either way so a subsequent fresh "New Trip"/"New Bill" doesn't land back in edit mode.
+- Join a Trip's link field no longer comes prefilled with a realistic-looking fake link — it starts empty with an instructional placeholder, and clears itself every time you return to the screen.
+- Investigated "upload receipt not working": this isn't a regression — `attachReceipt()` has only ever been a placeholder (shows a "sign in first" note for guests, an explanatory alert for signed-in users), and receipt uploads to Supabase Storage remain the one documented, not-yet-built gap. Let me know if you'd like that built out next.
+- Investigated "dashboard still showing wrong icon": the trip/bill dashboard markup already has the plane/receipt icons from earlier this session — if you're still seeing the old icon, the deployed GitHub Pages copy likely just hasn't been re-uploaded since that change.
+- Backed up to `260726-v06` before this batch.
+
 ## 2026-07-26 — Token rotation, bill edit parity, currency search field, multi-select bill items, settle-up polish, auth flow cleanup
 
 - New migration `0012_rotate_token_on_claim.sql`: `claim_trip`/`claim_bill` now regenerate `share_token` the moment a record is claimed into an account, so the old guest link stops working right away instead of staying live forever. The frontend swaps in the new token so the Trip Link / Bill Link screen keeps showing a working link.

@@ -1,6 +1,6 @@
 # Settlr — Supabase backend (guest-mode + RLS)
 
-Thirteen migrations, run in order:
+Fifteen migrations, run in order:
 
 1. `0001_schema.sql` — core trip tables: `trips`, `trip_members`, `expenses`, `expense_splits`, `settlements`, `favorites`. Requires `extensions` to be on the search path (see note below) since `gen_random_bytes()` lives there on hosted Supabase projects.
 2. `0002_rls_policies.sql` — enables RLS, locks `anon` out of every table, and adds `auth.uid()`-based policies so authenticated users can only see trips they own or belong to.
@@ -15,6 +15,8 @@ Thirteen migrations, run in order:
 11. `0011_bill_tax_defaults.sql` — changes `bills.service_pct`/`bills.gst_pct` column defaults from 0 to 10/9, so a new bill split starts with sensible tax defaults instead of every guest typing them in manually. Only affects bills created from here on.
 12. `0012_rotate_token_on_claim.sql` — `claim_trip`/`claim_bill` now generate a fresh `share_token` at the moment of claiming and write it in the same update, returning it in the response. The pre-claim guest link stops working immediately once a record belongs to an account, closing the access-leak risk of an old link staying live forever.
 13. `0013_bill_edit_parity.sql` — adds `update_bill_by_token` (rename + change currency) and `add_bill_member_by_token` / `update_bill_member_by_token` / `delete_bill_member_by_token`, giving bills the same post-creation edit parity trips have had since `0008`. Backs the frontend's new Edit Bill screen (which reuses Create Bill Split).
+14. `0014_expense_receipts.sql` — `add_expense_by_token`/`update_expense_by_token` gain a `p_receipt_path` param (`update_expense_by_token` also gets `p_clear_receipt`) so they can record the Storage object path from an uploaded receipt against `expenses.receipt_path` (a column that's existed since `0001` but was never wired up until now). Both functions are explicitly dropped before being recreated, since adding a parameter changes the function's signature — `create or replace` alone would've left the old signature behind as a separate overload instead of actually replacing it.
+15. `0015_receipt_storage_bucket.sql` — creates the private `receipts` Storage bucket and RLS policies restricting every operation to `(storage.foldername(name))[1] = auth.uid()::text`, i.e. everyone can only touch objects under their own user-id folder. **Can't be exercised by this project's pglite test harness** — the `storage` schema is a Supabase-platform feature, not something a bare embedded Postgres has — so this one needs a live check after deploying: upload a receipt as one account, confirm a second account can't list or fetch it.
 
 Note on `extensions.gen_random_bytes()`: on hosted Supabase projects, pgcrypto's functions are installed into the `extensions` schema rather than `public`. `0001` and `0005` each run `set search_path = public, extensions;` before creating anything that calls `gen_random_bytes()`, since every migration file runs in its own session and doesn't inherit an earlier file's `SET`.
 
@@ -128,5 +130,6 @@ Note on `extensions.gen_random_bytes()`: on hosted Supabase projects, pgcrypto's
 - **Rate limiting is done (`0010`)** — every anon-facing guest RPC now throttles by caller IP.
 - **Server-side split validation is done (`0009`)** — `expense_splits.owed_amount` is recomputed/validated server-side rather than trusted from the client.
 - **Claiming a guest record into an account is wired up, and the old link is rotated dead (`0012`)** — the "Save to My Account" button on Trip Link / Bill Link calls `claim_trip`/`claim_bill`, which now also regenerates `share_token` so the pre-claim link stops working immediately.
-- Wire up Supabase Storage + RLS on the storage bucket for receipt photos (authenticated accounts only, per the current spec) — the one item still fully unstarted.
+- **Receipt photo uploads are wired up (`0014`/`0015`)** — authenticated-only, uploaded client-side straight to the `receipts` Storage bucket, path recorded on `expenses.receipt_path` via the two expense RPCs. This was the last item on this list.
 - The rate limiter's IP-extraction (`request.headers` → `x-forwarded-for`) depends on PostgREST forwarding that header — worth a quick live check after deploying `0010` that it's actually populated on your project rather than silently falling back to the shared `'unknown'` bucket for every caller.
+- `0015`'s Storage bucket + RLS policies can't be exercised by the pglite harness (no `storage` schema in a bare embedded Postgres) — verify live: upload a receipt as one account, confirm a second account can't fetch or list it.

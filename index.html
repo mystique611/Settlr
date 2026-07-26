@@ -981,6 +981,14 @@
   .split-hint.ok { color: var(--success); font-weight: 600; }
   .split-hint.warn { color: var(--amber); font-weight: 600; }
   .receipt-locked-note { font-size: 12px; color: var(--amber); margin: 8px 2px 0; }
+  .receipt-attached-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 8px; padding: 10px 12px;
+    background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+  }
+  .receipt-attached-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .receipt-attached-row a { font-size: 12.5px; font-weight: 700; color: var(--accent); cursor: pointer; }
 
   /* ---- Settle Up ---- */
   .settle-card {
@@ -1084,7 +1092,7 @@
 
         <div class="row-card" onclick="window.editingTripId=null; go('createtrip')" style="margin-bottom:10px;">
           <div class="row-icon">
-            <i class="fa-solid fa-plus" style="font-size:18px;"></i>
+            <i class="fa-solid fa-plane" style="font-size:18px;"></i>
           </div>
           <div style="flex:1;">
             <p class="row-text-title">Start a New Trip</p>
@@ -1149,7 +1157,7 @@
         </div>
         <div class="field">
           <label class="field-label">Trip link</label>
-          <input class="field-input" id="joinLinkInput" type="text" placeholder="settlr.app/t/8f2a-91cb" value="settlr.app/t/8f2a-91cb">
+          <input class="field-input" id="joinLinkInput" type="text" placeholder="settlr.app/t/xxxxxxxxxxxxxxxxxx">
         </div>
         <button class="btn btn-primary" onclick="joinTripFromLink()">Continue</button>
         <p class="helper-text" id="joinSigninHelper">Signed in already? <a onclick="go('auth')">Sign in</a> to save this trip to your account.</p>
@@ -1201,7 +1209,7 @@
       <!-- SCREEN 6: Create trip -->
       <section class="screen" data-screen="createtrip">
         <div class="nav-row">
-          <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
+          <button class="back-btn" onclick="backFromCreateTrip()">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
           </button>
@@ -1413,10 +1421,17 @@
 
         <div class="field">
           <label class="field-label">Receipt</label>
+          <input type="file" accept="image/*" id="receiptFileInput" style="display:none;" onchange="handleReceiptFileSelected(event)">
           <button type="button" class="add-mate-btn" id="receiptBtn" onclick="attachReceipt()">
             <i class="fa-solid fa-camera" style="font-size:15px;"></i>
             Attach Receipt Photo
           </button>
+          <div class="receipt-attached-row" id="receiptAttachedRow" style="display:none;">
+            <i class="fa-solid fa-file-image" style="font-size:15px;"></i>
+            <span class="receipt-attached-name" id="receiptAttachedName">receipt.jpg</span>
+            <a onclick="viewAttachedReceipt()">View</a>
+            <a onclick="removeAttachedReceipt()">Remove</a>
+          </div>
           <p class="receipt-locked-note" id="receiptLockedNote" style="display:none;">Sign in to save receipt photos with this trip.</p>
         </div>
 
@@ -1560,7 +1575,7 @@
 
         <div class="row-card" onclick="window.editingTripId=null; go('createtrip')" style="margin-bottom:10px;">
           <div class="row-icon">
-            <i class="fa-solid fa-plus" style="font-size:18px;"></i>
+            <i class="fa-solid fa-plane" style="font-size:18px;"></i>
           </div>
           <div style="flex:1;">
             <p class="row-text-title">Start a New Trip</p>
@@ -1607,7 +1622,7 @@
       <!-- SCREEN 10: Bill Split — create -->
       <section class="screen" data-screen="billsplitcreate">
         <div class="nav-row">
-          <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
+          <button class="back-btn" onclick="backFromCreateBill()">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
           </button>
@@ -1950,7 +1965,10 @@
       renderTripCurrencyChips();
       if (editing) document.getElementById('tripDefaultCurrencySelect').value = window.allTrips[window.editingTripId].currencies.home;
     }
-    if (name === 'joinlink') updateJoinSigninHelper();
+    if (name === 'joinlink') {
+      document.getElementById('joinLinkInput').value = '';
+      updateJoinSigninHelper();
+    }
     if (name === 'accounthome') { renderTripsList(); renderAccountBillsList(); }
     if (name === 'guest') { renderGuestTripsList(); renderGuestBillsList(); }
     if (name === 'dashboard') {
@@ -2243,6 +2261,17 @@
     go('createtrip');
   }
 
+  // Back from Create/Edit Trip: if we got here via Edit (from a trip's
+  // own dashboard), return to that same dashboard — not all the way out
+  // to the account/guest list, which is jarring when you were only
+  // ever looking at one trip. A brand-new trip (no editingTripId) still
+  // backs out to the list, since there's no specific record to return to.
+  function backFromCreateTrip() {
+    const wasEditing = !!window.editingTripId;
+    window.editingTripId = null;
+    go(wasEditing ? 'dashboard' : (window.isAuthenticated ? 'accounthome' : 'guest'));
+  }
+
   // ---- Create trip OR save edits → same form, same button ----
   // Each trip gets its own id, its own mates/currencies/expenses, and its
   // own link — nothing here is shared global state, so two trips never
@@ -2273,6 +2302,7 @@
       paidBy: idToName[e.paid_by] || '?',
       splitLabel: SPLIT_LABELS[e.split_type] || 'Split equally',
       sub: '',
+      receiptPath: e.receipt_path || null,
       splits: (data.expense_splits || [])
         .filter(s => s.expense_id === e.id)
         .map(s => ({ member: idToName[s.trip_member_id] || '?', share: parseFloat(s.owed_amount) }))
@@ -2345,6 +2375,42 @@
     const { data, error } = await sb.rpc('get_bill_by_token', { p_token: b.shareToken });
     if (error) { console.error('Could not refresh bill from Supabase', error); return; }
     applySupabaseBillData(b, data);
+  }
+
+  // Mirrors setupJoinedTrip() below — a bill opened by token (via the
+  // ?b= auto-open link, since there's no separate "Join a Bill" screen)
+  // only counts as "yours" if it's already owned by the signed-in user;
+  // otherwise it stays isGuest so it shows up locally and can be
+  // claimed with the usual "Save to My Account" button.
+  function setupJoinedBill(data, token) {
+    const id = data.bill.id;
+    const myUid = window.authSession && window.authSession.user && window.authSession.user.id;
+    const alreadyMine = window.isAuthenticated && myUid && data.bill.owner_user_id === myUid;
+    const bill = window.allBills[id] || { id };
+    bill.link = billShareLink(token);
+    bill.shareToken = token;
+    bill.isGuest = !alreadyMine;
+    bill.isAccountBill = alreadyMine;
+    applySupabaseBillData(bill, data);
+    window.allBills[id] = bill;
+    touchBill(id);
+    return bill;
+  }
+
+  // Loads a bill split straight from its share token — used by the ?b=
+  // auto-open link on boot. Returns true/false so the caller can decide
+  // whether to fall through to the normal landing screen on failure.
+  async function openBillByToken(token) {
+    const { data, error } = await sb.rpc('get_bill_by_token', { p_token: token });
+    if (error) {
+      console.error('Could not load bill from Supabase', error);
+      alert('Could not find a bill split with that link. Double check it and try again.\n\n' + error.message);
+      return false;
+    }
+    const bill = setupJoinedBill(data, token);
+    window.currentBillId = bill.id;
+    go('billsplitdashboard');
+    return true;
   }
 
   // Bill settings (payer/tax/service/GST/tip) fire on every keystroke
@@ -2492,7 +2558,7 @@
       t.isGuest = false;
       t.isAccountTrip = true;
       t.shareToken = row.share_token;
-      t.link = 'settlr.app/t/' + row.share_token;
+      t.link = tripShareLink(row.share_token);
       window.allTrips[row.id] = t;
       // Reuses the exact same RPC + adapter guest trips use — a trip's
       // shape from get_trip_by_token doesn't depend on who's asking.
@@ -2513,7 +2579,7 @@
       b.isGuest = false;
       b.isAccountBill = true;
       b.shareToken = row.share_token;
-      b.link = 'settlr.app/b/' + row.share_token;
+      b.link = billShareLink(row.share_token);
       window.allBills[row.id] = b;
       const { data: fullData, error: fetchErr } = await sb.rpc('get_bill_by_token', { p_token: row.share_token });
       if (fetchErr) console.error('Could not load bill ' + row.id, fetchErr);
@@ -2557,17 +2623,37 @@
   // screen isn't marked active in the HTML on purpose, so an
   // already-signed-in visitor goes straight to accounthome instead of
   // flashing the landing page for the moment it takes to hear back
-  // from Supabase.
+  // from Supabase — UNLESS the URL carries a shared trip/bill link
+  // (?t=/?b=, see tripShareLink()/billShareLink() above), which takes
+  // priority over that: clicking someone else's link should open THEIR
+  // trip/bill even on a browser that's signed in to its own account.
   (async () => {
+    const linkParams = new URLSearchParams(window.location.search);
+    const linkTripToken = linkParams.get('t');
+    const linkBillToken = linkParams.get('b');
+    if (linkTripToken || linkBillToken) {
+      // Strip the token from the address bar right away so a refresh,
+      // or navigating elsewhere in the app, doesn't keep re-triggering
+      // this — and so it doesn't just sit there in the URL forever.
+      window.history.replaceState({}, '', siteBaseUrl());
+    }
+
     const { data, error } = await sb.auth.getSession();
     if (error) {
       console.error('Could not restore session', error);
-      go('mode');
-      return;
-    }
-    if (data.session) {
+    } else if (data.session) {
       window.authSession = data.session;
       window.isAuthenticated = true;
+    }
+
+    if (linkTripToken || linkBillToken) {
+      const opened = linkTripToken ? await openTripByToken(linkTripToken) : await openBillByToken(linkBillToken);
+      if (opened) return;
+      // Token didn't resolve (bad/expired link) — fall through to the
+      // normal signed-in/landing routing below instead of getting stuck.
+    }
+
+    if (window.isAuthenticated) {
       if (isPasswordRecovery) {
         await promptForNewPassword();
       } else {
@@ -2715,7 +2801,7 @@
       const id = data.trip_id;
       const trip = {
         id,
-        link: 'settlr.app/t/' + data.share_token,
+        link: tripShareLink(data.share_token),
         shareToken: data.share_token,
         isGuest: true
       };
@@ -2781,7 +2867,7 @@
 
       const trip = {
         id: tripRow.id,
-        link: 'settlr.app/t/' + tripRow.share_token,
+        link: tripShareLink(tripRow.share_token),
         shareToken: tripRow.share_token,
         isGuest: false,
         isAccountTrip: true
@@ -2814,12 +2900,27 @@
   // with protocol, or just the bare token), looks the trip up via
   // get_trip_by_token, and loads its real expenses/settlements too via
   // the same applySupabaseTripData() adapter used after create.
+  // Pulls the share token out of whatever got pasted: a real new-format
+  // link (`.../?t=<token>` or `?b=<token>`, with or without the
+  // protocol), the old cosmetic "settlr.app/t/<token>" format, or just
+  // the bare token on its own.
+  function extractTokenFromPastedLink(raw) {
+    const val = (raw || '').trim();
+    if (!val) return '';
+    try {
+      const url = new URL(val, window.location.href);
+      const qp = url.searchParams.get('t') || url.searchParams.get('b');
+      if (qp) return qp;
+    } catch (e) { /* not a parseable URL — fall through to path-based parsing */ }
+    return val.replace(/^https?:\/\//i, '').split(/[/?]/).filter(Boolean).pop() || val;
+  }
+
   async function joinTripFromLink() {
     const linkInput = document.getElementById('joinLinkInput');
     const linkVal = (linkInput && linkInput.value.trim()) || '';
     if (!linkVal) return;
 
-    const token = linkVal.replace(/^https?:\/\//i, '').split('/').filter(Boolean).pop() || linkVal;
+    const token = extractTokenFromPastedLink(linkVal);
 
     const joinBtn = document.querySelector('[data-screen="joinlink"] .btn-primary');
     if (joinBtn) { joinBtn.disabled = true; joinBtn.textContent = 'Joining…'; }
@@ -2834,16 +2935,49 @@
       return;
     }
 
+    setupJoinedTrip(data, token);
+    goToDashboard(data.trip.id);
+  }
+
+  // Shared by both the manual "paste a link" flow and the ?t= auto-open
+  // path below. A trip reached this way is only "yours" for real if
+  // it's already owned by the signed-in user (e.g. you're reopening
+  // your own trip's link) — otherwise it stays isGuest so it (a) shows
+  // up in "Your Trips on This Device" instead of nowhere, and (b) gets
+  // the "Save to My Account" claim button, exactly like a freshly
+  // created guest trip does. Without this, an authenticated user
+  // joining someone else's trip previously ended up in a broken
+  // in-between state: not marked guest, but never actually claimed
+  // server-side either, so it appeared in no list and had no way to
+  // become a real account trip.
+  function setupJoinedTrip(data, token) {
     const id = data.trip.id;
-    const trip = {
-      id,
-      link: 'settlr.app/t/' + token,
-      shareToken: token,
-      isGuest: !window.isAuthenticated
-    };
+    const myUid = window.authSession && window.authSession.user && window.authSession.user.id;
+    const alreadyMine = window.isAuthenticated && myUid && data.trip.owner_user_id === myUid;
+    const trip = window.allTrips[id] || { id };
+    trip.link = tripShareLink(token);
+    trip.shareToken = token;
+    trip.isGuest = !alreadyMine;
+    trip.isAccountTrip = alreadyMine;
     applySupabaseTripData(trip, data);
     window.allTrips[id] = trip;
-    goToDashboard(id);
+    touchTrip(id);
+    return trip;
+  }
+
+  // Loads a trip straight from its share token — used by the ?t=
+  // auto-open link on boot. Returns true/false so the caller can decide
+  // whether to fall through to the normal landing screen on failure.
+  async function openTripByToken(token) {
+    const { data, error } = await sb.rpc('get_trip_by_token', { p_token: token });
+    if (error) {
+      console.error('Could not load trip from Supabase', error);
+      alert('Could not find a trip with that link. Double check it and try again.\n\n' + error.message);
+      return false;
+    }
+    const trip = setupJoinedTrip(data, token);
+    await goToDashboard(trip.id);
+    return true;
   }
 
   // ---- Guest trips, stored locally per-device via IndexedDB ----
@@ -3124,6 +3258,26 @@
     return (amount / fromRate) * toRate;
   }
 
+  // ---- Real, clickable share links ----
+  // Previously these were a cosmetic "settlr.app/t/<token>" string that
+  // didn't point anywhere real — opening one did nothing, and joining a
+  // trip meant manually pasting the token into the Join screen. Now the
+  // link points at wherever this app is actually being served from
+  // (works for GitHub Pages, a custom domain, or localhost alike,
+  // since it's derived from the page's own URL rather than hardcoded),
+  // with the token in a query param that the app checks for on load
+  // (see the boot sequence near the bottom of this script) to jump
+  // straight to that trip/bill's dashboard — no copy-pasting required.
+  function siteBaseUrl() {
+    return window.location.origin + window.location.pathname;
+  }
+  function tripShareLink(token) {
+    return siteBaseUrl() + '?t=' + token;
+  }
+  function billShareLink(token) {
+    return siteBaseUrl() + '?b=' + token;
+  }
+
   function populateCurrencySelect(selectEl, selectedCode) {
     if (!selectEl) return;
     const codes = Object.keys(CURRENCY_META).sort();
@@ -3300,6 +3454,7 @@
             <p class="expense-amount">${formatMoney(e.amount, e.currency)}</p>
             ${showHomeEquivalent ? `<p class="expense-amount-sub">${formatMoney(convertAmount(e.amount, e.currency, home), home)}</p>` : ''}
           </div>
+          ${e.receiptPath ? `<button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="viewExpenseReceipt('${e.id}')" title="View receipt"><i class="fa-solid fa-paperclip" style="font-size:13px;"></i></button>` : ''}
           <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="editExpense('${e.id}')" title="Edit expense">${svgIcon('pen', 13)}</button>
           <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="deleteExpense('${e.id}')" title="Delete expense">${svgIcon('trash', 13)}</button>
         </div>
@@ -3403,6 +3558,10 @@
     currentSplitType = 'equal';
     window.selectedSplitMembers = new Set(t.mates);
     document.querySelectorAll('#splitTypeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+    window.currentExpenseReceiptPath = null;
+    window.expenseReceiptWasRemoved = false;
+    document.getElementById('receiptLockedNote').style.display = 'none';
+    renderReceiptField();
   }
 
   function toggleSplitMember(m) {
@@ -3508,12 +3667,117 @@
     }
   }
 
+  // ---- Receipt photos: uploaded straight to a private Supabase Storage
+  // bucket ('receipts', see migration 0015) under this user's own
+  // folder, as soon as a file is picked — not deferred to Save Expense
+  // — so the person gets immediate feedback (and a working "View" link)
+  // rather than wondering if anything happened. Authenticated only:
+  // guests have no account for the file to live in, and the bucket's
+  // RLS only lets a signed-in user touch their own folder anyway. ----
+  window.currentExpenseReceiptPath = null;
+  window.expenseReceiptWasRemoved = false;
+  const RECEIPT_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+
+  function renderReceiptField() {
+    const btn = document.getElementById('receiptBtn');
+    const row = document.getElementById('receiptAttachedRow');
+    const nameEl = document.getElementById('receiptAttachedName');
+    if (!btn || !row) return;
+    if (window.currentExpenseReceiptPath) {
+      btn.style.display = 'none';
+      row.style.display = 'flex';
+      nameEl.textContent = window.currentExpenseReceiptPath.split('/').pop();
+    } else {
+      btn.style.display = 'flex';
+      row.style.display = 'none';
+    }
+  }
+
   function attachReceipt() {
     if (!window.isAuthenticated) {
       document.getElementById('receiptLockedNote').style.display = 'block';
       return;
     }
-    alert('Opens your photo library to attach a receipt (native file picker in the real app).');
+    document.getElementById('receiptLockedNote').style.display = 'none';
+    document.getElementById('receiptFileInput').click();
+  }
+
+  async function handleReceiptFileSelected(event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = ''; // allow picking the same file again later
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Receipts need to be an image file (JPG, PNG, HEIC, etc).');
+      return;
+    }
+    if (file.size > RECEIPT_MAX_BYTES) {
+      alert('That image is larger than 10 MB — try a smaller photo or a compressed export.');
+      return;
+    }
+
+    const t = currentTrip();
+    const uid = window.authSession && window.authSession.user && window.authSession.user.id;
+    if (!uid) { alert('Sign in to attach receipt photos.'); return; }
+
+    const btn = document.getElementById('receiptBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="font-size:15px;"></i> Uploading…'; }
+
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `${uid}/${t.id}/${crypto.randomUUID()}.${ext}`;
+
+    const { error } = await sb.storage.from('receipts').upload(path, file, { upsert: false, contentType: file.type });
+
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-camera" style="font-size:15px;"></i> Attach Receipt Photo'; }
+
+    if (error) {
+      console.error('Could not upload receipt', error);
+      alert('Could not upload that receipt — check your connection and try again.\n\n' + error.message);
+      return;
+    }
+
+    window.currentExpenseReceiptPath = path;
+    window.expenseReceiptWasRemoved = false;
+    renderReceiptField();
+  }
+
+  async function viewAttachedReceipt() {
+    if (!window.currentExpenseReceiptPath) return;
+    const { data, error } = await sb.storage.from('receipts').createSignedUrl(window.currentExpenseReceiptPath, 60);
+    if (error) {
+      console.error('Could not open receipt', error);
+      alert('Could not open this receipt — ' + error.message);
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener');
+  }
+
+  // Same idea as viewAttachedReceipt(), but for a receipt already
+  // attached to a saved expense in the list, rather than the
+  // in-progress Add/Edit Expense form.
+  async function viewExpenseReceipt(id) {
+    const t = currentTrip();
+    const e = t.expenses.find(x => String(x.id) === String(id));
+    if (!e || !e.receiptPath) return;
+    const { data, error } = await sb.storage.from('receipts').createSignedUrl(e.receiptPath, 60);
+    if (error) {
+      console.error('Could not open receipt', error);
+      alert('Could not open this receipt — ' + error.message);
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener');
+  }
+
+  async function removeAttachedReceipt() {
+    const path = window.currentExpenseReceiptPath;
+    if (!path) return;
+    // Best-effort — if this fails the object just becomes an orphan in
+    // Storage (nothing references it anymore), which is harmless.
+    const { error } = await sb.storage.from('receipts').remove([path]);
+    if (error) console.warn('Could not delete receipt object from Storage', error);
+    window.currentExpenseReceiptPath = null;
+    window.expenseReceiptWasRemoved = true;
+    renderReceiptField();
   }
 
   const SPLIT_LABELS = { equal: 'Split equally', percentage: 'Split by %', exact: 'Split exact' };
@@ -3600,11 +3864,20 @@
         p_exchange_rate: 1,
         p_paid_by: paidById,
         p_split_type: currentSplitType,
-        p_splits: rpcSplits
+        p_splits: rpcSplits,
+        // Only ever a freshly-uploaded path or null — leaving an
+        // untouched existing receipt alone is update_expense_by_token's
+        // job via p_clear_receipt below, not something this field does.
+        p_receipt_path: window.currentExpenseReceiptPath || null
       };
+      // add_expense_by_token has no p_clear_receipt param (nothing to
+      // clear on a brand-new expense), so this only gets added for edits.
+      const updateExtra = isEdit
+        ? { p_expense_id: window.editingExpenseId, p_clear_receipt: !window.currentExpenseReceiptPath && !!window.expenseReceiptWasRemoved }
+        : {};
 
       const { error } = isEdit
-        ? await sb.rpc('update_expense_by_token', { ...rpcArgs, p_expense_id: window.editingExpenseId })
+        ? await sb.rpc('update_expense_by_token', { ...rpcArgs, ...updateExtra })
         : await sb.rpc('add_expense_by_token', rpcArgs);
 
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Save Changes' : 'Save Expense'; }
@@ -3624,12 +3897,17 @@
       return;
     }
 
+    // Local-only trips (demo seeds) never had Storage-backed receipts to
+    // begin with, but keep whatever's in currentExpenseReceiptPath in
+    // sync with the local record anyway, for consistency.
+    const receiptPath = window.currentExpenseReceiptPath || null;
+
     if (isEdit) {
       const idx = t.expenses.findIndex(e => String(e.id) === String(window.editingExpenseId));
       if (idx !== -1) {
         t.expenses[idx] = {
           ...t.expenses[idx],
-          description, category: selectedCategory, amount, currency, paidBy, splitLabel, splits
+          description, category: selectedCategory, amount, currency, paidBy, splitLabel, splits, receiptPath
         };
       }
       window.editingExpenseId = null;
@@ -3642,6 +3920,7 @@
         currency,
         paidBy,
         splitLabel,
+        receiptPath,
         sub: '',
         splits
       });
@@ -3674,6 +3953,9 @@
     document.getElementById('expAmount').value = e.amount;
     document.getElementById('expCurrency').value = e.currency;
     document.getElementById('expPaidBy').value = e.paidBy;
+    window.currentExpenseReceiptPath = e.receiptPath || null;
+    window.expenseReceiptWasRemoved = false;
+    renderReceiptField();
     selectedCategory = e.category;
     currentSplitType = Object.keys(SPLIT_LABELS).find(k => SPLIT_LABELS[k] === e.splitLabel) || 'equal';
     window.selectedSplitMembers = new Set((e.splits || []).map(s => s.member));
@@ -4060,6 +4342,13 @@
     go('billsplitcreate');
   }
 
+  // Mirrors backFromCreateTrip() above, for Bill Split.
+  function backFromCreateBill() {
+    const wasEditing = !!window.editingBillId;
+    window.editingBillId = null;
+    go(wasEditing ? 'billsplitdashboard' : (window.isAuthenticated ? 'accounthome' : 'guest'));
+  }
+
   // Mirrors claimCurrentTrip() above, for Bill Split.
   async function claimCurrentBill() {
     const d = currentBill();
@@ -4221,7 +4510,7 @@
       const id = data.bill_id;
       const bill = {
         id,
-        link: 'settlr.app/b/' + data.share_token,
+        link: billShareLink(data.share_token),
         shareToken: data.share_token,
         isGuest: true
       };
@@ -4294,7 +4583,7 @@
 
       const bill = {
         id: billRow.id,
-        link: 'settlr.app/b/' + billRow.share_token,
+        link: billShareLink(billRow.share_token),
         shareToken: billRow.share_token,
         isGuest: false,
         isAccountBill: true

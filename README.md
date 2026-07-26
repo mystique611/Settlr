@@ -13,7 +13,7 @@ Settlr/
 └── backend/
     └── supabase/
         ├── README.md                      ← backend architecture + API reference
-        └── migrations/                    ← 13 SQL migrations, run in order
+        └── migrations/                    ← 15 SQL migrations, run in order
 ```
 
 `index.html` sits at the repo root specifically so GitHub Pages serves it directly at the site's base URL (e.g. `https://<user>.github.io/Settlr/`) instead of falling back to a rendered `README.md`.
@@ -32,6 +32,7 @@ It's wired to a live Supabase project (URL and anon key are inlined near the top
 
 **Guest mode** (no account, get a shareable link):
 - Create or join a trip via link; add/rename/remove trip mates (at least one is required); rename the trip and change its currencies via a tag-style search field (type to add, tap a chip's ✕ to remove)
+- Trip and bill links are real, clickable URLs (`<your-site>/?t=<token>` / `?b=<token>`) — opening one loads that trip/bill straight to its dashboard, no pasting the token into "Join a Trip" required. A trip joined this way (or opened via link) stays in guest state — with the usual "Save to My Account" button — unless it's already yours
 - Add, edit, and delete expenses with equal/percentage/exact splits across multiple currencies — the split amounts are recomputed/validated server-side, not just trusted from the browser
 - Settle up: mark a debt paid in full or partially, undo a settlement
 - Delete a trip entirely (with confirmation)
@@ -46,9 +47,10 @@ It's wired to a live Supabase project (URL and anon key are inlined near the top
 - Google and Microsoft sign-in, once you've configured your own provider credentials (see the backend README)
 - Creating a trip or bill while signed in saves it for real (not local-only), and "Your Trips" / "Your Bills" list your actual account data
 - Because every trip/bill still gets a share link regardless of who created it, all the guest-mode editing above already works on your own account's trips too
+- Attach a receipt photo to any expense — uploads straight to a private Supabase Storage bucket under your own account, with a paperclip icon on the expense list to view it afterward and a Remove option on the Add/Edit Expense screen. Guest mode still can't attach receipts (no account for the file to live in)
 
 **Not yet wired:**
-- Receipt photo uploads (Supabase Storage) — the one remaining major gap
+- Nothing major left — receipt uploads (the last documented gap) are now wired end-to-end
 
 ## Deploying your own backend
 
@@ -58,7 +60,7 @@ Quick version:
 
 1. Install the Supabase CLI (`scoop install supabase` on Windows, `brew install supabase/tap/supabase` on macOS, or as an npm dev dependency elsewhere).
 2. `supabase login`, then `supabase link --project-ref <your-project-ref>` from the `backend` folder.
-3. `supabase db push` to apply all 13 migrations in order.
+3. `supabase db push` to apply all 15 migrations in order. Migration `0015` creates the `receipts` Storage bucket + RLS policies — this is the one migration the project's local pglite test harness can't exercise (Storage is a Supabase-platform feature), so give it a quick live check after pushing: upload a receipt as one account, confirm a second account can't fetch it.
 4. Swap the `SUPABASE_URL` / `SUPABASE_ANON_KEY` constants near the top of the prototype's `<script>` block for your own project's values (Project Settings → API in the Supabase dashboard). The anon key is safe to embed client-side by design — it has no table access on its own; the RLS policies and guest RPC functions are the actual gate.
 
 ## Tech
