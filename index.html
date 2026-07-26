@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Settlr — Onboarding Prototype</title>
+<title>Settlr</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -174,25 +174,6 @@
     margin-bottom: 4px;
   }
 
-  /* Small Settlr mark, centered in the same row as Back (when present)
-     and always vertically matching the theme toggle on the right —
-     present on every screen via the nav-row wrapper, whether or not
-     that screen also has a Back button. */
-  .brand-center-mark {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, var(--accent), #7CB0FF);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 3px 10px var(--accent-soft);
-    pointer-events: none;
-  }
   .back-btn {
     display: flex;
     align-items: center;
@@ -770,6 +751,55 @@
   .currency-chip .currency-name { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
   .currency-chip .chip-x { width: 14px; height: 14px; font-size: 11px; }
 
+  /* Tag-style multi-currency picker (Create Trip) — selected currencies
+     live as removable chips inside one bordered field, like an email
+     "To" box, with a search input in the same row for adding more. */
+  .currency-tag-field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+    background: var(--card);
+    cursor: text;
+  }
+  .currency-tag-field:focus-within { border-color: var(--accent); }
+  .currency-tag-field .currency-chip-row { margin: 0; gap: 6px; }
+  .currency-search-input {
+    flex: 1;
+    min-width: 110px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 13px;
+    padding: 5px 4px;
+    color: var(--text-primary);
+  }
+  .currency-search-dropdown {
+    margin-top: 6px;
+    max-height: 190px;
+    overflow-y: auto;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-sm);
+    background: var(--card);
+    display: none;
+  }
+  .currency-search-dropdown.open { display: block; }
+  .currency-search-option {
+    padding: 9px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .currency-search-option .cs-code { font-weight: 700; }
+  .currency-search-option .cs-name { color: var(--text-secondary); }
+  .currency-search-option:hover, .currency-search-option.active { background: var(--accent-soft); }
+  .currency-search-empty { padding: 10px 12px; font-size: 12.5px; color: var(--text-secondary); }
+
   .section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .section-title { font-size: 15px; font-weight: 700; margin: 0; }
   .section-link { font-size: 12.5px; font-weight: 600; color: var(--accent); }
@@ -989,9 +1019,13 @@
 
     <div class="screens" id="screens">
 
-      <!-- SCREEN 2: Mode selection (now the landing page) -->
-      <section class="screen active" data-screen="mode">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:'Inter',-apple-system,sans-serif;">$</span></div></div>
+      <!-- SCREEN 2: Mode selection (now the landing page). Not marked
+           active here — the session-restore check below decides the
+           real starting screen, so an already-signed-in visitor goes
+           straight to their account dashboard instead of flashing this
+           landing page first. -->
+      <section class="screen" data-screen="mode">
+        <div class="nav-row"></div>
         <div class="header-block">
           <p class="header-eyebrow">Settlr</p>
           <h2 class="header-title">How do you want to continue?</h2>
@@ -1037,7 +1071,7 @@
 
       <!-- SCREEN 3: Guest choice -->
       <section class="screen" data-screen="guest">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go('mode')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1048,7 +1082,7 @@
           <h2 class="header-title">Start or join a trip</h2>
         </div>
 
-        <div class="row-card" onclick="go('createtrip')" style="margin-bottom:10px;">
+        <div class="row-card" onclick="window.editingTripId=null; go('createtrip')" style="margin-bottom:10px;">
           <div class="row-icon">
             <i class="fa-solid fa-plus" style="font-size:18px;"></i>
           </div>
@@ -1070,7 +1104,7 @@
           <i class="fa-solid fa-chevron-right chevron"></i>
         </div>
 
-        <div class="row-card" onclick="go('billsplitcreate')" style="margin-bottom:0;">
+        <div class="row-card" onclick="window.editingBillId=null; go('billsplitcreate')" style="margin-bottom:0;">
           <div class="row-icon">
             <i class="fa-solid fa-receipt" style="font-size:18px;"></i>
           </div>
@@ -1102,7 +1136,7 @@
 
       <!-- SCREEN 4: Join via link -->
       <section class="screen" data-screen="joinlink">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1123,7 +1157,7 @@
 
       <!-- SCREEN 5: Auth -->
       <section class="screen" data-screen="auth">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go('mode')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1166,7 +1200,7 @@
 
       <!-- SCREEN 6: Create trip -->
       <section class="screen" data-screen="createtrip">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1190,8 +1224,15 @@
 
         <div class="field">
           <label class="field-label">Currency</label>
-          <select class="field-input" id="tripCurrencySelect" style="padding:13px 14px;" onchange="addTripCurrencyChip()"></select>
-          <div class="currency-chip-row" id="tripCurrencyChips"></div>
+          <div class="currency-tag-field" onclick="document.getElementById('tripCurrencySearchInput').focus()">
+            <div class="currency-chip-row" id="tripCurrencyChips"></div>
+            <input class="currency-search-input" id="tripCurrencySearchInput" type="text" placeholder="Type to add another…" autocomplete="off"
+              oninput="filterCurrencySearch(this.value)"
+              onfocus="filterCurrencySearch(this.value)"
+              onkeydown="currencySearchKeydown(event)"
+              onclick="event.stopPropagation()">
+          </div>
+          <div class="currency-search-dropdown" id="tripCurrencySearchDropdown"></div>
         </div>
 
         <div class="field">
@@ -1218,7 +1259,7 @@
 
       <!-- SCREEN 7: Share links -->
       <section class="screen" data-screen="sharelinks">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:'Inter',-apple-system,sans-serif;">$</span></div></div>
+        <div class="nav-row"></div>
         <div style="margin-top:20px;">
           <div class="success-icon">
             <i class="fa-solid fa-check" style="font-size:28px;"></i>
@@ -1247,7 +1288,7 @@
 
       <!-- SCREEN 8: Trip dashboard (preview) -->
       <section class="screen" data-screen="dashboard">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1257,7 +1298,7 @@
         <div class="dash-scroll">
           <div class="dash-header">
             <div class="dash-trip-row">
-              <div class="dash-trip-icon"><span style="font-weight:800;">$</span></div>
+              <div class="dash-trip-icon"><i class="fa-solid fa-plane" style="font-size:18px;"></i></div>
               <div>
                 <p class="dash-trip-name" id="dashboardTripName">Bali with the crew</p>
                 <p class="dash-trip-sub" id="dashboardTripSub">USD · IDR, SGD · 3 members</p>
@@ -1302,7 +1343,7 @@
 
       <!-- SCREEN 8a2: All Expenses -->
       <section class="screen" data-screen="allexpenses">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go('dashboard')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1316,7 +1357,7 @@
 
       <!-- SCREEN 8b: Add Expense -->
       <section class="screen" data-screen="addexpense">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go('dashboard')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1387,7 +1428,7 @@
 
       <!-- SCREEN 8c: Settle Up -->
       <section class="screen" data-screen="settleup">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go('dashboard')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1413,7 +1454,7 @@
 
       <!-- SCREEN 8d: Stats & Export -->
       <section class="screen" data-screen="stats">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go('dashboard')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1445,7 +1486,7 @@
 
       <!-- SCREEN 8f: Trip Link info -->
       <section class="screen" data-screen="tripinfo">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go('dashboard')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1475,7 +1516,7 @@
 
       <!-- Bill Split link info, mirrors tripinfo above -->
       <section class="screen" data-screen="billinfo">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:'Inter',-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go('billsplitdashboard')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1505,12 +1546,9 @@
 
       <!-- SCREEN 9: Account home (authenticated trip picker) -->
       <section class="screen" data-screen="accounthome">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
-          <button class="back-btn" onclick="go('mode')">
-            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
-            Back
-          </button>
-        </div>
+        <!-- No Back button here on purpose: once signed in, Sign Out
+             (below) is the only way back to the landing page. -->
+        <div class="nav-row"></div>
         <div class="header-block" style="margin: 14px 0 16px;">
           <p class="header-eyebrow">Account Mode</p>
           <h2 class="header-title">Where to next?</h2>
@@ -1520,7 +1558,7 @@
           </p>
         </div>
 
-        <div class="row-card" onclick="go('createtrip')" style="margin-bottom:10px;">
+        <div class="row-card" onclick="window.editingTripId=null; go('createtrip')" style="margin-bottom:10px;">
           <div class="row-icon">
             <i class="fa-solid fa-plus" style="font-size:18px;"></i>
           </div>
@@ -1542,7 +1580,7 @@
           <i class="fa-solid fa-chevron-right chevron"></i>
         </div>
 
-        <div class="row-card" onclick="go('billsplitcreate')" style="margin-bottom:0;">
+        <div class="row-card" onclick="window.editingBillId=null; go('billsplitcreate')" style="margin-bottom:0;">
           <div class="row-icon">
             <i class="fa-solid fa-receipt" style="font-size:18px;"></i>
           </div>
@@ -1568,7 +1606,7 @@
 
       <!-- SCREEN 10: Bill Split — create -->
       <section class="screen" data-screen="billsplitcreate">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1576,8 +1614,8 @@
         </div>
         <div class="header-block">
           <p class="header-eyebrow">Split a Bill</p>
-          <h2 class="header-title">New bill split</h2>
-          <p class="header-desc">For a single receipt — no travel dates or full trip setup needed.</p>
+          <h2 class="header-title" id="billCreateTitle">New bill split</h2>
+          <p class="header-desc" id="billCreateDesc">For a single receipt — no travel dates or full trip setup needed.</p>
         </div>
 
         <div class="field">
@@ -1607,7 +1645,7 @@
 
       <!-- SCREEN 11: Bill Split — share link -->
       <section class="screen" data-screen="billsplitshare">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:'Inter',-apple-system,sans-serif;">$</span></div></div>
+        <div class="nav-row"></div>
         <div style="margin-top:20px;">
           <div class="success-icon">
             <i class="fa-solid fa-check" style="font-size:28px;"></i>
@@ -1636,7 +1674,7 @@
 
       <!-- SCREEN 12: Bill Split — dashboard -->
       <section class="screen" data-screen="billsplitdashboard">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1646,13 +1684,16 @@
         <div class="dash-scroll">
           <div class="dash-header">
             <div class="dash-trip-row">
-              <div class="dash-trip-icon" id="billDashboardIcon"><span style="font-weight:800;">?</span></div>
+              <div class="dash-trip-icon" id="billDashboardIcon"><i class="fa-solid fa-receipt" style="font-size:18px;"></i></div>
               <div>
                 <p class="dash-trip-name" id="billDashboardName">Dinner at Nobu</p>
                 <p class="dash-trip-sub" id="billDashboardSub">Receipt currency USD</p>
               </div>
             </div>
             <div class="dash-header-right">
+              <button class="icon-btn" id="editBillBtn" onclick="openEditBill()" title="Edit">
+                <i class="fa-solid fa-pen" style="font-size:14px;"></i>
+              </button>
               <button class="icon-btn" onclick="go('billinfo')" title="Bill link">
                 <i class="fa-solid fa-circle-info" style="font-size:14px;"></i>
               </button>
@@ -1724,7 +1765,7 @@
 
       <!-- SCREEN 13: Bill Split — add/edit item -->
       <section class="screen" data-screen="billsplitadditem">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go('billsplitdashboard')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1741,12 +1782,20 @@
 
         <div class="field">
           <label class="field-label" id="billItemAmountLabel">Amount (USD)</label>
-          <input class="field-input" id="billItemAmount" type="number" placeholder="0.00">
+          <input class="field-input" id="billItemAmount" type="number" placeholder="0.00" oninput="renderBillItemOwedByEditor()">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Split mode</label>
+          <div class="tab-switch" id="billItemModeTabs" style="margin-bottom:12px;">
+            <button class="tab-btn active" onclick="setBillItemMode('equal')">Split Equally</button>
+            <button class="tab-btn" onclick="setBillItemMode('duplicate')">Duplicate Amount</button>
+          </div>
         </div>
 
         <div class="field">
           <label class="field-label">Payable by</label>
-          <select class="field-input" id="billItemOwedBy" style="padding:13px 14px;"></select>
+          <div id="billItemOwedByEditor"></div>
         </div>
 
         <div class="spacer"></div>
@@ -1757,7 +1806,7 @@
 
       <!-- SCREEN 14: Bill Split — settle up -->
       <section class="screen" data-screen="billsplitsettle">
-        <div class="nav-row"><div class="brand-center-mark"><span style="color:#fff; font-weight:800; font-size:14px; font-family:&quot;Inter&quot;,-apple-system,sans-serif;">$</span></div>
+        <div class="nav-row">
           <button class="back-btn" onclick="go('billsplitdashboard')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
@@ -1874,7 +1923,8 @@
       document.getElementById('createTripDesc').style.display = editing ? 'block' : 'none';
       document.getElementById('deleteTripBtn').style.display = editing ? 'flex' : 'none';
       document.getElementById('createTripSubmitBtn').textContent = editing ? 'Save Changes' : 'Create Trip';
-      populateCurrencySelect(document.getElementById('tripCurrencySelect'), 'SGD');
+      document.getElementById('tripCurrencySearchInput').value = '';
+      closeCurrencySearch();
 
       if (editing) {
         const t = window.allTrips[window.editingTripId];
@@ -1945,9 +1995,29 @@
     }
     if (name === 'stats') renderCategoryStats();
     if (name === 'billsplitcreate') {
-      populateCurrencySelect(document.getElementById('billCurrencySelect'), 'SGD');
-      document.getElementById('billNameInput').value = '';
-      document.getElementById('billMateList').innerHTML = '';
+      const editingBill = !!window.editingBillId && !!window.allBills[window.editingBillId];
+      document.getElementById('billCreateTitle').textContent = editingBill ? 'Edit Bill' : 'New bill split';
+      document.getElementById('billCreateDesc').style.display = editingBill ? 'none' : 'block';
+      document.getElementById('billCreateSubmitBtn').textContent = editingBill ? 'Save Changes' : 'Create Bill Split';
+
+      if (editingBill) {
+        const b = window.allBills[window.editingBillId];
+        populateCurrencySelect(document.getElementById('billCurrencySelect'), b.currency);
+        document.getElementById('billNameInput').value = b.name;
+        // data-member-id lets createBillSplit() diff renamed/added/removed
+        // people against their real backend ids, same pattern as Edit Trip.
+        document.getElementById('billMateList').innerHTML = b.mates.map(m => `
+          <div class="mate-row" data-member-id="${(b.memberIds && b.memberIds[m]) || ''}">
+            <div class="mate-avatar">${m[0].toUpperCase()}</div>
+            <input class="field-input" type="text" placeholder="Name" value="${m.replace(/"/g, '&quot;')}" oninput="updateMateAvatarFromInput(this)">
+            <div class="mate-remove" onclick="this.parentElement.remove()">✕</div>
+          </div>
+        `).join('');
+      } else {
+        populateCurrencySelect(document.getElementById('billCurrencySelect'), 'SGD');
+        document.getElementById('billNameInput').value = '';
+        document.getElementById('billMateList').innerHTML = '';
+      }
     }
     if (name === 'billsplitdashboard') renderBillDashboard();
     if (name === 'billsplitadditem') prepareBillItemForm();
@@ -2076,30 +2146,83 @@
     sel.value = window.selectedTripCurrencies.includes(prev) ? prev : window.selectedTripCurrencies[0];
   }
 
-  function addTripCurrencyChip() {
-    const sel = document.getElementById('tripCurrencySelect');
-    const code = sel && sel.value;
-    if (!code || window.selectedTripCurrencies.includes(code)) return;
-    window.selectedTripCurrencies.push(code);
-    renderTripCurrencyChips();
-  }
-
   function removeTripCurrency(code) {
     if (window.selectedTripCurrencies.length <= 1) return; // always keep at least one
     window.selectedTripCurrencies = window.selectedTripCurrencies.filter(c => c !== code);
     renderTripCurrencyChips();
   }
 
+  // ---- Create Trip: tag-style currency search (types into the same
+  // field the chips live in, like an email "To" box) ----
+  function currencySearchMatches(query) {
+    const q = (query || '').trim().toLowerCase();
+    return Object.keys(CURRENCY_META)
+      .filter(c => !window.selectedTripCurrencies.includes(c))
+      .filter(c => !q || c.toLowerCase().includes(q) || CURRENCY_META[c].name.toLowerCase().includes(q))
+      .sort();
+  }
+
+  function filterCurrencySearch(query) {
+    const dropdown = document.getElementById('tripCurrencySearchDropdown');
+    if (!dropdown) return;
+    const matches = currencySearchMatches(query);
+    if (!matches.length) {
+      dropdown.innerHTML = '<div class="currency-search-empty">No matching currency</div>';
+    } else {
+      dropdown.innerHTML = matches.map((c, i) => `
+        <div class="currency-search-option${i === 0 ? ' active' : ''}" data-code="${c}" onclick="addTripCurrencyByCode('${c}')">
+          <span class="cs-code">${c}</span><span class="cs-name">${CURRENCY_META[c].name}</span>
+        </div>
+      `).join('');
+    }
+    dropdown.classList.add('open');
+  }
+
+  function closeCurrencySearch() {
+    const dropdown = document.getElementById('tripCurrencySearchDropdown');
+    if (dropdown) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; }
+  }
+
+  function addTripCurrencyByCode(code) {
+    if (!code || window.selectedTripCurrencies.includes(code)) return;
+    window.selectedTripCurrencies.push(code);
+    renderTripCurrencyChips();
+    const input = document.getElementById('tripCurrencySearchInput');
+    if (input) { input.value = ''; input.focus(); }
+    filterCurrencySearch('');
+  }
+
+  function currencySearchKeydown(event) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const matches = currencySearchMatches(event.target.value);
+      if (matches.length) addTripCurrencyByCode(matches[0]);
+    } else if (event.key === 'Escape') {
+      closeCurrencySearch();
+      event.target.blur();
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    const field = document.getElementById('tripCurrencySearchInput');
+    if (field && !field.closest('.currency-tag-field').contains(e.target)) closeCurrencySearch();
+  });
+
   // ---- Add trip mate ----
-  let mateCount = 2;
-  const mateColors = ['A','B','C','D','E'];
+  // Avatar starts empty (no name typed yet) and fills in with the first
+  // letter of whatever's typed, live, rather than showing a placeholder
+  // letter that has nothing to do with the eventual name.
+  function updateMateAvatarFromInput(input) {
+    const avatar = input.previousElementSibling;
+    const v = input.value.trim();
+    avatar.textContent = v ? v[0].toUpperCase() : '';
+  }
   function addMate() {
-    mateCount++;
     const wrap = document.createElement('div');
     wrap.className = 'mate-row';
     wrap.innerHTML = `
-      <div class="mate-avatar">${String.fromCharCode(64 + mateCount)}</div>
-      <input class="field-input" type="text" placeholder="Name">
+      <div class="mate-avatar"></div>
+      <input class="field-input" type="text" placeholder="Name" oninput="updateMateAvatarFromInput(this)">
       <div class="mate-remove" onclick="this.parentElement.remove()">✕</div>
     `;
     document.getElementById('mateList').appendChild(wrap);
@@ -2429,9 +2552,19 @@
   // in again every time, then keep window.isAuthenticated in sync with
   // whatever happens to the session afterward (sign-in elsewhere,
   // expiry, etc).
+  //
+  // This also decides the very first screen shown: the mode/landing
+  // screen isn't marked active in the HTML on purpose, so an
+  // already-signed-in visitor goes straight to accounthome instead of
+  // flashing the landing page for the moment it takes to hear back
+  // from Supabase.
   (async () => {
     const { data, error } = await sb.auth.getSession();
-    if (error) { console.error('Could not restore session', error); return; }
+    if (error) {
+      console.error('Could not restore session', error);
+      go('mode');
+      return;
+    }
     if (data.session) {
       window.authSession = data.session;
       window.isAuthenticated = true;
@@ -2441,6 +2574,8 @@
         await Promise.all([loadMyTrips(), loadMyBills()]);
         go('accounthome');
       }
+    } else {
+      go('mode');
     }
   })();
 
@@ -3104,7 +3239,7 @@
     const btn = document.getElementById('claimTripBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
-    const { error } = await sb.rpc('claim_trip', { p_token: t.shareToken });
+    const { data, error } = await sb.rpc('claim_trip', { p_token: t.shareToken });
 
     if (error) {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up" style="font-size:15px;"></i> Save to My Account'; }
@@ -3115,6 +3250,10 @@
 
     t.isGuest = false;
     t.isAccountTrip = true;
+    // claim_trip rotates share_token server-side so the old guest link
+    // stops working once the trip belongs to an account — swap in the
+    // new one so the Trip Link screen shows a link that still works.
+    if (data && data.share_token) t.shareToken = data.share_token;
     await deleteGuestRecord(t.id);
     alert('Saved to your account.');
     go('tripinfo');
@@ -3910,6 +4049,17 @@
     if (b.isGuest) saveGuestTrip({ id, name: b.name, type: 'bill', updatedAt: b.updatedAt, data: cloneData(b) });
   }
 
+  // Mirrors openEditTrip() above: reuses the Create Bill Split screen in
+  // "edit" mode (title/subheader/button swap handled in go()) so name,
+  // currency, and people all live in one place instead of two screens.
+  window.editingBillId = null;
+  async function openEditBill() {
+    window.editingBillId = window.currentBillId;
+    const b = window.allBills[window.editingBillId];
+    if (b && b.shareToken) await reloadBillFromSupabase(b.id);
+    go('billsplitcreate');
+  }
+
   // Mirrors claimCurrentTrip() above, for Bill Split.
   async function claimCurrentBill() {
     const d = currentBill();
@@ -3917,7 +4067,7 @@
     const btn = document.getElementById('claimBillBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
-    const { error } = await sb.rpc('claim_bill', { p_token: d.shareToken });
+    const { data, error } = await sb.rpc('claim_bill', { p_token: d.shareToken });
 
     if (error) {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up" style="font-size:15px;"></i> Save to My Account'; }
@@ -3928,20 +4078,21 @@
 
     d.isGuest = false;
     d.isAccountBill = true;
+    // claim_bill rotates share_token server-side — swap it in so the
+    // Bill Link screen shows a link that still works post-claim.
+    if (data && data.share_token) d.shareToken = data.share_token;
     await deleteGuestRecord(d.id);
     alert('Saved to your account.');
     go('billinfo');
   }
 
   // ---- Add a person on the Bill Split create screen ----
-  let billMateCount = 2;
   function addBillMate() {
-    billMateCount++;
     const wrap = document.createElement('div');
     wrap.className = 'mate-row';
     wrap.innerHTML = `
-      <div class="mate-avatar">${String.fromCharCode(64 + billMateCount)}</div>
-      <input class="field-input" type="text" placeholder="Name">
+      <div class="mate-avatar"></div>
+      <input class="field-input" type="text" placeholder="Name" oninput="updateMateAvatarFromInput(this)">
       <div class="mate-remove" onclick="this.parentElement.remove()">✕</div>
     `;
     document.getElementById('billMateList').appendChild(wrap);
@@ -3966,6 +4117,87 @@
       return;
     }
     const mates = mateNames;
+
+    // ── Edit Bill: reuses this same screen/form, diffing people rows
+    // against the data-member-id stamped on each when the edit form was
+    // populated — mirrors submitTripForm()'s Edit Trip branch exactly.
+    if (window.editingBillId) {
+      const b = window.allBills[window.editingBillId];
+      window.editingBillId = null;
+      if (!b) { go(window.isAuthenticated ? 'accounthome' : 'guest'); return; }
+
+      if (b.shareToken) {
+        const submitBtn = document.getElementById('billCreateSubmitBtn');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+
+        const { error: updErr } = await sb.rpc('update_bill_by_token', {
+          p_token: b.shareToken,
+          p_name: name,
+          p_currency: currency
+        });
+        if (updErr) {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save Changes'; }
+          console.error('Could not save bill changes to Supabase', updErr);
+          alert('Could not save bill changes — check your connection and try again.\n\n' + updErr.message);
+          return;
+        }
+
+        const idToName = {};
+        Object.entries(b.memberIds || {}).forEach(([nm, mid]) => { idToName[mid] = nm; });
+
+        const rows = Array.from(document.querySelectorAll('#billMateList .mate-row'));
+        const seenIds = new Set();
+        let mateErr = null;
+        for (const row of rows) {
+          const input = row.querySelector('input');
+          const value = input ? input.value.trim() : '';
+          const memberId = row.dataset.memberId || '';
+          if (!value) continue;
+          if (memberId) {
+            seenIds.add(memberId);
+            if (idToName[memberId] !== value) {
+              const { error } = await sb.rpc('update_bill_member_by_token', {
+                p_token: b.shareToken, p_member_id: memberId, p_display_name: value
+              });
+              if (error) mateErr = error;
+            }
+          } else {
+            const { error } = await sb.rpc('add_bill_member_by_token', {
+              p_token: b.shareToken, p_display_name: value
+            });
+            if (error) mateErr = error;
+          }
+        }
+        // Anyone previously on the bill with no matching row left = removed.
+        for (const [, mid] of Object.entries(b.memberIds || {})) {
+          if (!seenIds.has(mid)) {
+            const { error } = await sb.rpc('delete_bill_member_by_token', {
+              p_token: b.shareToken, p_member_id: mid
+            });
+            if (error) mateErr = error;
+          }
+        }
+
+        await reloadBillFromSupabase(b.id);
+        touchBill(b.id);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save Changes'; }
+
+        if (mateErr) {
+          console.error('Some bill people changes could not be saved', mateErr);
+          alert('Bill details were saved, but one of the people changes failed — often because that person already owes an item on this bill and can\'t be removed.\n\n' + mateErr.message);
+        }
+        go('billsplitdashboard');
+        return;
+      }
+
+      // ── Local-only bill (authenticated-mode demo seed) ─────
+      b.name = name;
+      b.currency = currency;
+      if (mates.length) b.mates = mates;
+      touchBill(b.id);
+      go('billsplitdashboard');
+      return;
+    }
 
     if (!window.isAuthenticated) {
       const submitBtn = document.getElementById('billCreateSubmitBtn');
@@ -4182,8 +4414,9 @@
     const d = currentBill();
     document.getElementById('billDashboardName').textContent = d.name;
     document.getElementById('billDashboardSub').textContent = `Receipt currency ${d.currency} · ${d.mates.length} people`;
-    document.getElementById('billDashboardIcon').innerHTML =
-      `<span style="font-weight:800;">${(d.payer || '?')[0].toUpperCase()}</span>`;
+    // Dashboard header icon is a plain receipt mark (not the payer's
+    // initial) — the bill cards in Your Bills still show the payer's
+    // initial, this header just identifies "this is a bill split".
 
     const payerSelect = document.getElementById('billPayerSelect');
     payerSelect.innerHTML = d.mates.map(m => `<option value="${m}">${m}</option>`).join('');
@@ -4207,8 +4440,6 @@
     touchBill(d.id);
     scheduleBillSettingsSave(d);
     recalcBillTotals();
-    const icon = document.getElementById('billDashboardIcon');
-    if (icon) icon.innerHTML = `<span style="font-weight:800;">${(name || '?')[0].toUpperCase()}</span>`;
   }
 
   function renderBillItems() {
@@ -4276,22 +4507,66 @@
     document.getElementById('billItemSaveBtn').textContent = isEdit ? 'Save Changes' : 'Save Item';
     document.getElementById('billItemAmountLabel').textContent = `Amount (${d.currency})`;
 
-    const owedBySelect = document.getElementById('billItemOwedBy');
-    owedBySelect.innerHTML = d.mates.map(m => `<option value="${m}">${m}</option>`).join('');
-
     const descInput = document.getElementById('billItemDescription');
     const amtInput = document.getElementById('billItemAmount');
+
+    window.billItemMode = 'equal';
+    document.querySelectorAll('#billItemModeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
 
     const item = isEdit ? d.items.find(it => String(it.id) === String(window.editingBillItemId)) : null;
     if (item) {
       descInput.value = item.description;
       amtInput.value = item.amount;
-      owedBySelect.value = item.owedBy;
+      window.selectedBillItemOwedBy = new Set([item.owedBy]);
     } else {
       descInput.value = '';
       amtInput.value = '';
-      owedBySelect.value = d.payer;
+      window.selectedBillItemOwedBy = new Set([d.payer]);
     }
+    renderBillItemOwedByEditor();
+  }
+
+  // ---- Bill item "Payable by": multi-select rows (same visual language
+  // as the trip Add Expense split editor's .split-row), plus a mode
+  // toggle deciding how the entered amount turns into one item per
+  // selected person once Save is clicked. ----
+  function setBillItemMode(mode) {
+    window.billItemMode = mode;
+    document.querySelectorAll('#billItemModeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', (mode === 'equal') === (i === 0)));
+    renderBillItemOwedByEditor();
+  }
+
+  function toggleBillItemOwedBy(name) {
+    if (window.selectedBillItemOwedBy.has(name)) window.selectedBillItemOwedBy.delete(name);
+    else window.selectedBillItemOwedBy.add(name);
+    renderBillItemOwedByEditor();
+  }
+
+  function renderBillItemOwedByEditor() {
+    const d = currentBill();
+    const container = document.getElementById('billItemOwedByEditor');
+    if (!container || !d) return;
+    const amount = parseFloat(document.getElementById('billItemAmount').value) || 0;
+    const selected = d.mates.filter(m => window.selectedBillItemOwedBy.has(m));
+    const count = selected.length || 1;
+    const perPersonAmount = window.billItemMode === 'equal' ? amount / count : amount;
+
+    container.innerHTML = d.mates.map(m => {
+      const isSel = window.selectedBillItemOwedBy.has(m);
+      return `
+        <div class="split-row ${isSel ? 'selected' : ''}" onclick="toggleBillItemOwedBy(${JSON.stringify(m).replace(/"/g, '&quot;')})">
+          <div class="mate-avatar">${m[0].toUpperCase()}</div>
+          <span class="split-name">${m}</span>
+          <span class="split-value" ${isSel ? '' : 'style="color:var(--text-tertiary); font-weight:600;"'}>${isSel ? formatMoney(perPersonAmount, d.currency) : 'Not included'}</span>
+        </div>
+      `;
+    }).join('') + `<p class="split-hint">${
+      selected.length === 0
+        ? 'Tap a name to include them'
+        : window.billItemMode === 'equal'
+          ? `Splits into ${selected.length} individual ${selected.length === 1 ? 'item' : 'items'} of ${formatMoney(perPersonAmount, d.currency)} each, shown separately in the bill overview`
+          : `Creates ${selected.length} individual ${selected.length === 1 ? 'item' : 'items'} of ${formatMoney(amount, d.currency)} each, shown separately in the bill overview`
+    }</p>`;
   }
 
   // Items are auto-saved: every add/edit immediately mutates the bill
@@ -4302,11 +4577,27 @@
     const d = currentBill();
     const description = (document.getElementById('billItemDescription').value || '').trim();
     const amount = parseFloat(document.getElementById('billItemAmount').value) || 0;
-    const owedBy = document.getElementById('billItemOwedBy').value;
     const isEdit = window.editingBillItemId != null;
+    const selected = d.mates.filter(m => window.selectedBillItemOwedBy.has(m));
 
     if (!description) { document.getElementById('billItemDescription').focus(); return; }
     if (amount <= 0) { document.getElementById('billItemAmount').focus(); return; }
+    if (!selected.length) { alert('Select at least one person this item is payable by.'); return; }
+
+    // Equal mode divides the entered amount across everyone selected,
+    // with the last person absorbing any rounding remainder so the
+    // pieces always add back up to the original amount exactly.
+    // Duplicate mode gives everyone the full keyed-in amount instead —
+    // e.g. everyone ordered the same $12 drink. Either way, each
+    // selected person becomes their own individual item in the bill
+    // overview once this saves.
+    const count = selected.length;
+    const perPersonAmount = window.billItemMode === 'equal' ? amount / count : amount;
+    const entries = selected.map((m, i) => {
+      let amt = perPersonAmount;
+      if (window.billItemMode === 'equal' && i === count - 1) amt = amount - perPersonAmount * (count - 1);
+      return { owedBy: m, amount: Math.round(amt * 100) / 100 };
+    });
 
     if (d.shareToken) {
       const saveBtn = document.getElementById('billItemSaveBtn');
@@ -4314,30 +4605,43 @@
 
       // Self-healing, same guard used for expenses/settlements: a bill
       // opened from a stale local cache could be missing memberIds.
-      if (!d.memberIds || !d.memberIds[owedBy]) {
+      if (!d.memberIds || selected.some(m => !d.memberIds[m])) {
         await reloadBillFromSupabase(d.id);
       }
-      if (!d.memberIds || !d.memberIds[owedBy]) {
+      if (!d.memberIds || selected.some(m => !d.memberIds[m])) {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Save Changes' : 'Save Item'; }
-        alert('Could not match that person to this bill\'s data. Try reopening the bill and saving again.');
+        alert('Could not match everyone selected to this bill\'s data. Try reopening the bill and saving again.');
         return;
       }
-      const owedById = d.memberIds[owedBy];
 
-      const { error } = isEdit
-        ? await sb.rpc('update_bill_item_by_token', {
-            p_token: d.shareToken, p_item_id: window.editingBillItemId,
-            p_description: description, p_amount: amount, p_owed_by: owedById
-          })
-        : await sb.rpc('add_bill_item_by_token', {
-            p_token: d.shareToken, p_description: description, p_amount: amount, p_owed_by: owedById
-          });
+      // Editing an item that's turning into more than one (or staying
+      // just one) is simplest as delete-then-recreate rather than
+      // stretching update_bill_item_by_token to cover a 1-to-many change.
+      if (isEdit) {
+        const { error: delErr } = await sb.rpc('delete_bill_item_by_token', {
+          p_token: d.shareToken, p_item_id: window.editingBillItemId
+        });
+        if (delErr) {
+          if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Changes'; }
+          console.error('Could not update this item', delErr);
+          alert('Could not save this item — check your connection and try again.\n\n' + delErr.message);
+          return;
+        }
+      }
+
+      let saveErr = null;
+      for (const entry of entries) {
+        const { error } = await sb.rpc('add_bill_item_by_token', {
+          p_token: d.shareToken, p_description: description, p_amount: entry.amount, p_owed_by: d.memberIds[entry.owedBy]
+        });
+        if (error) saveErr = error;
+      }
 
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Save Changes' : 'Save Item'; }
 
-      if (error) {
-        console.error('Could not save bill item to Supabase', error);
-        alert('Could not save this item — check your connection and try again.\n\n' + error.message);
+      if (saveErr) {
+        console.error('Could not save bill item(s) to Supabase', saveErr);
+        alert('Could not save this item — check your connection and try again.\n\n' + saveErr.message);
         return;
       }
 
@@ -4349,11 +4653,11 @@
 
     // ── Local-only bill (authenticated demo seed) ───────────
     if (isEdit) {
-      const item = d.items.find(it => String(it.id) === String(window.editingBillItemId));
-      if (item) { item.description = description; item.amount = amount; item.owedBy = owedBy; }
-    } else {
-      d.items.push({ id: Date.now(), description, amount, owedBy });
+      d.items = d.items.filter(it => String(it.id) !== String(window.editingBillItemId));
     }
+    entries.forEach((entry, i) => {
+      d.items.push({ id: Date.now() + i, description, amount: entry.amount, owedBy: entry.owedBy });
+    });
 
     window.editingBillItemId = null;
     touchBill(d.id);
@@ -4461,19 +4765,33 @@
     document.getElementById('billSettleDesc').textContent = `Full breakdown, including tax, service & tip. Paid by ${d.payer}.`;
     document.getElementById('billSettlePayerName').textContent = d.payer;
 
+    // Grouped by person rather than one flat list — each person's items
+    // sit together with a subtotal, matching how the exported image
+    // lays the same breakdown out.
     const itemsList = document.getElementById('billSettleItemsList');
-    itemsList.innerHTML = d.items.map(it => `
-      <div class="expense-item">
-        <div class="mate-avatar" style="flex-shrink:0;">${it.owedBy[0]}</div>
-        <div style="flex:1;">
-          <p class="expense-title">${it.description}</p>
-          <p class="expense-sub">Payable by ${it.owedBy}</p>
-        </div>
-        <div style="text-align:right;">
-          <p class="expense-amount">${formatMoney(it.amount, d.currency)}</p>
-        </div>
-      </div>
-    `).join('') || '<p class="guest-trips-empty">No items on this bill yet.</p>';
+    if (!d.items.length) {
+      itemsList.innerHTML = '<p class="guest-trips-empty">No items on this bill yet.</p>';
+    } else {
+      itemsList.innerHTML = d.mates.filter(m => d.items.some(it => it.owedBy === m)).map(m => {
+        const mineItems = d.items.filter(it => it.owedBy === m);
+        const subtotal = mineItems.reduce((s, it) => s + it.amount, 0);
+        return `
+          <div class="settle-person-group" style="margin-bottom:14px;">
+            <div class="expense-item" style="padding-bottom:4px;">
+              <div class="mate-avatar" style="flex-shrink:0;">${m[0].toUpperCase()}</div>
+              <p class="expense-title" style="flex:1;">${m}</p>
+              <p class="expense-amount">${formatMoney(subtotal, d.currency)}</p>
+            </div>
+            ${mineItems.map(it => `
+              <div class="expense-item" style="padding-left:36px;">
+                <p class="expense-sub" style="flex:1;">${it.description}</p>
+                <p class="expense-sub">${formatMoney(it.amount, d.currency)}</p>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }).join('');
+    }
 
     const breakdown = document.getElementById('billSettleBreakdown');
     const rows = [
@@ -4518,16 +4836,25 @@
 
   // ---- Save the settle-up view as a PNG, drawn on a canvas so this
   // stays self-contained (no external screenshot library/CDN) ----
-  function exportBillScreenshot() {
+  async function exportBillScreenshot() {
     const d = currentBill();
     const totals = computeBillTotals();
     const others = d.mates.filter(m => m !== d.payer);
 
+    // Same person-grouping as the on-screen breakdown, so the image
+    // matches what you see in the app rather than a flat item list.
+    const groups = d.mates
+      .filter(m => d.items.some(it => it.owedBy === m))
+      .map(m => ({ name: m, items: d.items.filter(it => it.owedBy === m) }));
+
     const lineHeight = 26;
     const width = 480;
-    const itemsHeight = Math.max(d.items.length, 1) * lineHeight;
+    const itemsHeight = groups.length
+      ? groups.reduce((s, g) => s + lineHeight + g.items.length * lineHeight, 0)
+      : lineHeight;
     const breakdownRows = (d.taxIncluded ? 1 : 4) + 1;
-    const height = 130 + itemsHeight + 30 + breakdownRows * lineHeight + 50 + Math.max(others.length, 1) * lineHeight + 30;
+    const footerHeight = 46;
+    const height = 130 + itemsHeight + 30 + breakdownRows * lineHeight + 50 + Math.max(others.length, 1) * lineHeight + 30 + footerHeight;
 
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -4549,15 +4876,33 @@
     ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
     y += 24;
 
-    ctx.font = '13px sans-serif';
-    d.items.forEach(it => {
-      ctx.fillStyle = '#0f172a';
-      ctx.fillText(`${it.description} (${it.owedBy})`, 24, y);
-      ctx.textAlign = 'right';
-      ctx.fillText(formatMoney(it.amount, d.currency), width - 24, y);
-      ctx.textAlign = 'left';
+    if (!groups.length) {
+      ctx.font = '13px sans-serif';
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('No items on this bill yet.', 24, y);
       y += lineHeight;
-    });
+    } else {
+      groups.forEach(g => {
+        const subtotal = g.items.reduce((s, it) => s + it.amount, 0);
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(g.name, 24, y);
+        ctx.textAlign = 'right';
+        ctx.fillText(formatMoney(subtotal, d.currency), width - 24, y);
+        ctx.textAlign = 'left';
+        y += lineHeight;
+
+        ctx.font = '13px sans-serif';
+        g.items.forEach(it => {
+          ctx.fillStyle = '#64748b';
+          ctx.fillText(it.description, 40, y);
+          ctx.textAlign = 'right';
+          ctx.fillText(formatMoney(it.amount, d.currency), width - 24, y);
+          ctx.textAlign = 'left';
+          y += lineHeight;
+        });
+      });
+    }
 
     y += 4;
     ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
@@ -4604,10 +4949,38 @@
       y += lineHeight;
     });
 
+    // Footer credit, centered at the bottom of the image.
+    y = height - footerHeight / 2 - 4;
+    ctx.beginPath(); ctx.moveTo(24, y - 18); ctx.lineTo(width - 24, y - 18); ctx.stroke();
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'center';
+    ctx.fillText('Generated by Settlr', width / 2, y);
+    ctx.textAlign = 'left';
+
+    const fileName = (d.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'bill-split') + '.png';
+
+    // On a phone, hand off to the native share sheet (which includes
+    // "Save Image"/"Save to Photos") instead of triggering a generic
+    // file download — desktop browsers largely don't support sharing
+    // files at all, so this naturally falls back to a normal download
+    // there via canShare's feature check rather than a UA sniff.
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const file = blob && new File([blob], fileName, { type: 'image/png' });
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: d.name });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return; // user cancelled the share sheet
+        console.warn('Share failed, falling back to download', err);
+      }
+    }
+
     const url = canvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = url;
-    a.download = (d.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'bill-split') + '.png';
+    a.download = fileName;
     a.click();
   }
 </script>

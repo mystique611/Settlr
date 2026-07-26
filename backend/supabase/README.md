@@ -1,6 +1,6 @@
 # Settlr — Supabase backend (guest-mode + RLS)
 
-Eleven migrations, run in order:
+Thirteen migrations, run in order:
 
 1. `0001_schema.sql` — core trip tables: `trips`, `trip_members`, `expenses`, `expense_splits`, `settlements`, `favorites`. Requires `extensions` to be on the search path (see note below) since `gen_random_bytes()` lives there on hosted Supabase projects.
 2. `0002_rls_policies.sql` — enables RLS, locks `anon` out of every table, and adds `auth.uid()`-based policies so authenticated users can only see trips they own or belong to.
@@ -13,6 +13,8 @@ Eleven migrations, run in order:
 9. `0009_expense_split_validation.sql` — `add_expense_by_token`/`update_expense_by_token` no longer trust the client's per-member `owed_amount` as-is. A new `_recompute_expense_splits()` helper recomputes equal/percentage splits server-side and validates that exact splits still add up to the expense total, rejecting anything that doesn't reconcile.
 10. `0010_rate_limiting.sql` — a `_rpc_attempt_log` table + `_check_rate_limit()` helper, keyed on the caller's IP (read from the request headers PostgREST forwards) rather than the token being tried. Applied to every anon-facing guest RPC: 60 requests/5 minutes for the two bootstrap reads (`get_trip_by_token`/`get_bill_by_token`), 30 requests/5 minutes for every mutation (create/add/update/delete/claim).
 11. `0011_bill_tax_defaults.sql` — changes `bills.service_pct`/`bills.gst_pct` column defaults from 0 to 10/9, so a new bill split starts with sensible tax defaults instead of every guest typing them in manually. Only affects bills created from here on.
+12. `0012_rotate_token_on_claim.sql` — `claim_trip`/`claim_bill` now generate a fresh `share_token` at the moment of claiming and write it in the same update, returning it in the response. The pre-claim guest link stops working immediately once a record belongs to an account, closing the access-leak risk of an old link staying live forever.
+13. `0013_bill_edit_parity.sql` — adds `update_bill_by_token` (rename + change currency) and `add_bill_member_by_token` / `update_bill_member_by_token` / `delete_bill_member_by_token`, giving bills the same post-creation edit parity trips have had since `0008`. Backs the frontend's new Edit Bill screen (which reuses Create Bill Split).
 
 Note on `extensions.gen_random_bytes()`: on hosted Supabase projects, pgcrypto's functions are installed into the `extensions` schema rather than `public`. `0001` and `0005` each run `set search_path = public, extensions;` before creating anything that calls `gen_random_bytes()`, since every migration file runs in its own session and doesn't inherit an earlier file's `SET`.
 
@@ -104,16 +106,27 @@ Note on `extensions.gen_random_bytes()`: on hosted Supabase projects, pgcrypto's
   await supabase.rpc('claim_bill', { p_token: tokenFromUrl });
   ```
 
-  This only succeeds if the record hasn't already been claimed by someone else, so it's safe to expose to anyone who has the link. The frontend now calls this from a "Save to My Account" button on the Trip Link / Bill Link screens, shown whenever a signed-in user is viewing a guest-created trip/bill.
+  This only succeeds if the record hasn't already been claimed by someone else, so it's safe to expose to anyone who has the link. The frontend now calls this from a "Save to My Account" button on the Trip Link / Bill Link screens, shown whenever a signed-in user is viewing a guest-created trip/bill. Since `0012`, both functions also rotate `share_token` and return the new one (`{ trip_id, name, share_token }` / `{ bill_id, name, share_token }`) — the pre-claim link stops resolving right away, so the frontend swaps in the new token to keep the Trip Link / Bill Link screen showing a link that still works.
+
+- **Editing a bill in place** (name, currency) and managing its people, mirroring `update_trip_by_token`/the trip member functions above:
+
+  ```js
+  await supabase.rpc('update_bill_by_token', { p_token: shareToken, p_name: 'Dinner at Nobu v2', p_currency: 'SGD' });
+  await supabase.rpc('add_bill_member_by_token', { p_token: shareToken, p_display_name: 'Priya' });
+  await supabase.rpc('update_bill_member_by_token', { p_token: shareToken, p_member_id: priyaId, p_display_name: 'Priya S.' });
+  await supabase.rpc('delete_bill_member_by_token', { p_token: shareToken, p_member_id: priyaId });
+  // Fails with a 23503 foreign-key violation if that person owes a bill item —
+  // bill_items.owed_by is ON DELETE RESTRICT, same reasoning as trip mates above.
+  // Only set as the payer (bills.payer_member_id, ON DELETE SET NULL)? Clears quietly instead.
+  ```
 
 - **Removing a trip mate** (`delete_trip_member_by_token`) fails with a foreign-key violation (`23503`) if that person is referenced as an expense's `paid_by` — that FK is `ON DELETE RESTRICT` (see `0001`) specifically so removing someone doesn't silently orphan an expense's meaning. The frontend surfaces this as an alert rather than swallowing it. Their `expense_splits` and `settlements` rows, by contrast, cascade-delete along with them.
 
 ## Still to do before this is production-ready
 
-- **Guest RPC parity is complete** — every mutation the frontend supports for trips and bill splits has a corresponding guest-token RPC as of `0008`.
+- **Guest RPC parity is complete** — every mutation the frontend supports for trips and bill splits has a corresponding guest-token RPC as of `0008`, plus bill rename/currency/member-management parity as of `0013`.
 - **Rate limiting is done (`0010`)** — every anon-facing guest RPC now throttles by caller IP.
 - **Server-side split validation is done (`0009`)** — `expense_splits.owed_amount` is recomputed/validated server-side rather than trusted from the client.
-- **Claiming a guest record into an account is wired up** — the "Save to My Account" button on Trip Link / Bill Link calls `claim_trip`/`claim_bill`.
+- **Claiming a guest record into an account is wired up, and the old link is rotated dead (`0012`)** — the "Save to My Account" button on Trip Link / Bill Link calls `claim_trip`/`claim_bill`, which now also regenerates `share_token` so the pre-claim link stops working immediately.
 - Wire up Supabase Storage + RLS on the storage bucket for receipt photos (authenticated accounts only, per the current spec) — the one item still fully unstarted.
-- Rotate `share_token` after `claim_trip`/`claim_bill` if you want the pre-claim links to stop working once a record is saved to an account — not done; currently the old guest link keeps working even after claiming.
 - The rate limiter's IP-extraction (`request.headers` → `x-forwarded-for`) depends on PostgREST forwarding that header — worth a quick live check after deploying `0010` that it's actually populated on your project rather than silently falling back to the shared `'unknown'` bucket for every caller.
