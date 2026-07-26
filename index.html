@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Settlr</title>
+<link rel="icon" type="image/svg+xml" href="icon/Settlr.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icon/favicon-32.png">
+<link rel="apple-touch-icon" href="icon/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B0E14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Settlr">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -1157,7 +1166,7 @@
         </div>
         <div class="field">
           <label class="field-label">Trip link</label>
-          <input class="field-input" id="joinLinkInput" type="text" placeholder="settlr.app/t/xxxxxxxxxxxxxxxxxx">
+          <input class="field-input" id="joinLinkInput" type="text" placeholder="Paste your link here">
         </div>
         <button class="btn btn-primary" onclick="joinTripFromLink()">Continue</button>
         <p class="helper-text" id="joinSigninHelper">Signed in already? <a onclick="go('auth')">Sign in</a> to save this trip to your account.</p>
@@ -2071,7 +2080,7 @@
       const total = t.expenses.reduce((sum, e) => sum + convertAmount(e.amount, e.currency, t.currencies.home), 0);
       return `
         <div class="trip-card" onclick="goToDashboard('${t.id}')">
-          <div class="trip-card-icon"><span style="font-weight:800;">$</span></div>
+          <div class="trip-card-icon"><i class="fa-solid fa-plane" style="font-size:16px;"></i></div>
           <div style="flex:1;">
             <p class="trip-card-name">${t.name}</p>
             <p class="trip-card-sub">${t.mates.length} members · ${t.expenses.length} expense${t.expenses.length === 1 ? '' : 's'}</p>
@@ -2670,6 +2679,16 @@
     window.isAuthenticated = !!session;
   });
 
+  // ---- PWA installability ----
+  // Registered relative to wherever this file is actually served from
+  // (not a hardcoded path), so this keeps working whether it's at a
+  // domain root or a GitHub Pages project subpath. Only registers over
+  // http(s) — a raw file:// open (also true of OAuth) can't have a
+  // service worker at all, so this just quietly no-ops there.
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.protocol === 'http:')) {
+    navigator.serviceWorker.register('sw.js').catch((err) => console.warn('Service worker registration failed', err));
+  }
+
   async function submitTripForm() {
     const nameInput = document.getElementById('tripNameInput');
     const name = (nameInput && nameInput.value.trim()) || 'Your Trip';
@@ -3154,7 +3173,7 @@
       const total = t.expenses.reduce((sum, e) => sum + convertAmount(e.amount, e.currency, t.currencies.home), 0);
       return `
         <div class="trip-card" onclick="goToDashboard('${r.id}')">
-          <div class="trip-card-icon"><span style="font-weight:800;">$</span></div>
+          <div class="trip-card-icon"><i class="fa-solid fa-plane" style="font-size:16px;"></i></div>
           <div style="flex:1;">
             <p class="trip-card-name">${t.name}</p>
             <p class="trip-card-sub">${relativeTime(r.updatedAt)}</p>
@@ -4633,7 +4652,7 @@
       const totals = computeBillTotalsFor(b);
       return `
         <div class="trip-card" onclick="openAccountBill('${b.id}')">
-          <div class="trip-card-icon"><span style="font-weight:800;">${(b.payer || '?')[0].toUpperCase()}</span></div>
+          <div class="trip-card-icon"><i class="fa-solid fa-receipt" style="font-size:16px;"></i></div>
           <div style="flex:1;">
             <p class="trip-card-name">${b.name}</p>
             <p class="trip-card-sub">Paid by ${b.payer} · ${b.items.length} item${b.items.length === 1 ? '' : 's'}</p>
@@ -4678,7 +4697,7 @@
       const totals = computeBillTotalsFor(b);
       return `
         <div class="trip-card" onclick="openGuestBill('${r.id}')">
-          <div class="trip-card-icon"><span style="font-weight:800;">${(b.payer || '?')[0].toUpperCase()}</span></div>
+          <div class="trip-card-icon"><i class="fa-solid fa-receipt" style="font-size:16px;"></i></div>
           <div style="flex:1;">
             <p class="trip-card-name">${b.name}</p>
             <p class="trip-card-sub">${relativeTime(r.updatedAt)}</p>

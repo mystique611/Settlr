@@ -9,6 +9,10 @@ This repo currently holds a working, single-file frontend prototype and a comple
 ```
 Settlr/
 ├── index.html                             ← the app (open directly in a browser, or serve as-is)
+├── manifest.json                          ← PWA manifest (installable app metadata)
+├── sw.js                                  ← service worker (caches only the static shell, never live data)
+├── icon/                                  ← app icons (source SVG + rasterized favicon/PWA PNGs)
+├── ARCHITECTURE.md                        ← reference doc: how the whole system fits together
 ├── <date>-v<NN>/                          ← dated backups, taken before each editing session (see below)
 └── backend/
     └── supabase/
@@ -49,8 +53,12 @@ It's wired to a live Supabase project (URL and anon key are inlined near the top
 - Because every trip/bill still gets a share link regardless of who created it, all the guest-mode editing above already works on your own account's trips too
 - Attach a receipt photo to any expense — uploads straight to a private Supabase Storage bucket under your own account, with a paperclip icon on the expense list to view it afterward and a Remove option on the Add/Edit Expense screen. Guest mode still can't attach receipts (no account for the file to live in)
 
+**Installable as an app:**
+- Settlr can be installed as a PWA (Add to Home Screen / desktop install) — real favicon, apple-touch-icon, and manifest icons (including Android maskable variants) are wired in, backed by a minimal service worker that only caches static shell files, never app data (every screen still needs a live connection to Supabase)
+
 **Not yet wired:**
 - Nothing major left — receipt uploads (the last documented gap) are now wired end-to-end
+- Trip/bill deletion is intentionally unrestricted — anyone holding a valid share link can delete a trip or bill, regardless of who created or claimed it (considered adding a creator/claimed-account restriction; explicitly decided against it for now)
 
 ## Deploying your own backend
 

@@ -2,6 +2,17 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-07-27 — PWA installability, real app icons, list-card icon fix, housekeeping audit, ARCHITECTURE.md
+
+- The app is now installable as a PWA: new `manifest.json` (name, theme colors matching the app's dark background, standalone display) and a minimal `sw.js` service worker that only caches the static shell (manifest + icons) — it deliberately never caches the page itself or any Supabase call, since every screen depends on live data. Registered from a small snippet right after the existing auth-state listener, guarded to only run over `http(s)://`.
+- Real icons everywhere: rasterized `icon/Settlr.svg` (via ImageMagick) into `favicon-32.png`, `apple-touch-icon.png` (180×180), `icon-192.png`/`icon-512.png`, and safe-zone-padded `icon-192-maskable.png`/`icon-512-maskable.png` for Android's adaptive-icon mask. Wired into `<head>` as the favicon, apple-touch-icon, and manifest icon set — the browser tab and any installed PWA now show the real Settlr mark instead of a generic default.
+- Fixed the "Your Trips"/"Your Bills" **list-card** icons (account and guest "on this device" lists) — these were still showing the old "$" mark and payer-initial badge; both now show the same plane/receipt icons already used on the dashboard headers and action rows. (This supersedes the payer-initial-on-bill-cards behavior from the 2026-07-26 "Require at least one mate" entry below — that concept is now fully removed.)
+- Join a Trip's link field placeholder changed to "Paste your link here", replacing the old fake-token-shaped example text.
+- Full codebase housekeeping audit (JS functions + SQL RPCs, cross-referenced against every call site including the one dynamically-computed RPC name for trip/bill delete): **no dead code found.** Two near-misses worth recording: `delete_trip_by_token`/`delete_bill_by_token` looked unused to a naive literal-string search but are called via a runtime-computed variable name; the hardcoded demo trip/bill seed data looks like leftover prototype content but is load-bearing — a script-parse-time statement depends on it existing before any real data loads, so removing it would crash the app on open. Neither was touched.
+- Considered restricting trip/bill deletion to the creator (or claimed account). Discussed and explicitly declined — current behavior stays as-is: anyone holding a valid share link can delete, regardless of who created or claimed it.
+- Added `ARCHITECTURE.md` — a reference doc (for your own use, not user-facing) covering the frontend structure, the full Supabase backend (schema, RLS, the guest-token RPC pattern, rate limiting, Storage), Brevo SMTP, Google/Azure OAuth, GitHub Pages hosting + the backup convention, and the PWA setup.
+- Backed up to `260726-v08` before this batch.
+
 ## 2026-07-26 — Receipt photo uploads, "Start a New Trip" icon fix
 
 - New migrations `0014_expense_receipts.sql` and `0015_receipt_storage_bucket.sql`: `add_expense_by_token`/`update_expense_by_token` can now record a receipt's Storage path, and a private `receipts` bucket (RLS: everyone can only touch their own user-id folder) backs it. `0015` isn't testable via the project's pglite harness (no `storage` schema in a bare embedded Postgres) — verify live after deploying.
