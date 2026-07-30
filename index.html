@@ -1780,7 +1780,7 @@
               Scan Receipt
             </button>
           </div>
-          <input type="file" accept="image/*" capture="environment" id="scanReceiptFileInput" style="display:none;" onchange="handleScanReceiptFileSelected(event)">
+          <input type="file" accept="image/*" id="scanReceiptFileInput" style="display:none;" onchange="handleScanReceiptFileSelected(event)">
 
           <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:18px;">
             <p class="section-title">Tax, service & tip</p>
@@ -5090,7 +5090,20 @@
 
       if (error) {
         console.error('Receipt scan failed', error);
-        alert('Could not read that receipt — check your connection and try again, or add items manually.');
+        // supabase-js doesn't put a non-2xx function response into
+        // `data` — the actual error message the function sent back
+        // (e.g. "not configured yet", "too many scans", a Gemini
+        // failure) is only reachable via error.context, the raw
+        // Response object. Fall back to the generic message if that
+        // isn't there or isn't JSON.
+        let message = 'Could not read that receipt — check your connection and try again, or add items manually.';
+        try {
+          if (error.context && typeof error.context.json === 'function') {
+            const body = await error.context.json();
+            if (body && body.error) message = body.error;
+          }
+        } catch (_) { /* keep the generic message */ }
+        alert(message);
         return;
       }
       if (data && data.error) {

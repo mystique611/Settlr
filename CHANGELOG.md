@@ -2,6 +2,18 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-07-31 — Scan Receipt: allow uploading an existing photo, not just camera capture
+
+- Dropped the `capture="environment"` attribute from the Scan Receipt file input. That attribute was forcing mobile browsers straight into the camera app, with no way to pick an existing photo from the library/files instead. Without it, tapping "Scan Receipt" now shows the phone's normal picker (camera **or** photo library **or** files, depending on OS/browser) — same input, same `handleScanReceiptFileSelected()` handler, no other logic changed.
+- No redeploy needed beyond the usual GitHub Pages re-upload of `index.html` — this is a frontend-only change.
+
+## 2026-07-31 — Receipt scanning: multi-model fallback + retry (live deploy troubleshooting)
+
+- After deploying the OCR feature (previous entry), real scans kept failing in production. Live debugging via the Supabase dashboard logs traced it through three distinct causes in sequence: `gemini-2.5-flash` and `gemini-2.5-flash-lite` had both lost API access for new keys (Google cut the entire 2.5 generation off around 2026-07-09, ahead of an Oct 2026 shutdown); `gemini-2.0-flash` turned out to be fully shut down as of Google's current model docs (its errors showed a `limit: 0` free-tier quota, which in hindsight was the tell); and `gemini-3.5-flash`, while a valid current-generation model, hit transient 503 "high demand" errors under free-tier load.
+- Rather than keep swapping the `GEMINI_MODEL` secret by hand every time Google's lineup shifts, `scan-receipt` now tries a short list of current stable models in order (`gemini-3.5-flash` → `gemini-3.5-flash-lite` → `gemini-3.1-flash-lite`), with one quick retry on a 503 before moving to the next model. `GEMINI_MODEL`, if set, is just tried first — it no longer needs to be the *only* model tried.
+- Also fixed a frontend bug found during this troubleshooting: `sb.functions.invoke()` doesn't populate its error detail on non-2xx responses by default — the app was showing a generic "could not read that receipt" message even when the Edge Function returned a specific, useful error. It now reads the real message via `error.context.json()` and shows that instead.
+- **Needs a redeploy to take effect**: `supabase functions deploy scan-receipt --project-ref qdrwjkeczyualpncrdin --use-api` (the code changed; the earlier `GEMINI_API_KEY`/`GEMINI_MODEL` secrets don't need to be touched again).
+
 ## 2026-07-30 — AI receipt scanning for Bill Split (Gemini OCR)
 
 - New migration `0016_receipt_scan_rate_limit.sql`: a `receipt_scan_log` table (client IP + timestamp) with RLS enabled and no policies at all, so only the service role can touch it — backs a new per-IP rate limit that's separate from the existing `_check_rate_limit`/`_rpc_attempt_log` (`0010`), since this one guards an Edge Function calling out to a paid (if free-tier) third-party API, not a `.rpc()` call. Also adds `_prune_receipt_scan_log()` for cleanup.

@@ -15,9 +15,28 @@
 //
 // Deploy with: supabase functions deploy scan-receipt --project-ref <ref>
 // Secret required: supabase secrets set GEMINI_API_KEY=<your key> --project-ref <ref>
-// Optional secret: GEMINI_MODEL (defaults to gemini-2.5-flash below) —
-// set this if Google renames/retires the default model later, without
-// needing a redeploy.
+// Optional secret: GEMINI_MODEL — if set, this model is tried FIRST, ahead
+// of the built-in fallback list below. Useful for pinning to a specific
+// model without a redeploy, or for routing around an outage without
+// waiting on a code change.
+//
+// Why a fallback list instead of one hardcoded model: Gemini's free-tier
+// lineup turns over fast (gemini-2.5-flash lost new-key access on
+// 2026-07-09; gemini-2.0-flash was fully shut down shortly after) and
+// even current-generation models return transient 503 "high demand"
+// errors under free-tier load. Trying several stable models in order,
+// with a short retry on 503, means a single model's outage or overload
+// doesn't take down the whole feature. As of 2026-07, gemini-3.5-flash,
+// gemini-3.5-flash-lite, and gemini-3.1-flash-lite are all GA/stable —
+// see https://ai.google.dev/gemini-api/docs/models.
+const FALLBACK_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+// Only 503 (transient overload) is worth a quick retry on the SAME model.
+// 429 (quota/rate-limit) carries a retryDelay measured in seconds, far
+// longer than we can afford mid-request — for that, move straight to the
+// next model instead of waiting it out.
+const RETRY_STATUS_CODES = new Set([503]);
+const RETRIES_PER_MODEL = 2;
+const RETRY_DELAY_MS = 1200;
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -128,7 +147,31 @@ async function isRateLimited(supabase: ReturnType<typeof createClient>, ip: stri
 }
 
 async function callGemini(apiKey: string, imageBase64: string, mimeType: string) {
-  const model = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash';
+  const pinned = Deno.env.get('GEMINI_MODEL');
+  const models = pinned ? [pinned, ...FALLBACK_MODELS.filter((m) => m !== pinned)] : FALLBACK_MODELS;
+
+  let lastErr: Error | null = null;
+  for (const model of models) {
+    for (let attempt = 0; attempt <= RETRIES_PER_MODEL; attempt++) {
+      try {
+        return await callGeminiModel(apiKey, model, imageBase64, mimeType);
+      } catch (err) {
+        lastErr = err instanceof Error ? err : new Error(String(err));
+        const status = (err as { status?: number })?.status;
+        const canRetrySameModel = typeof status === 'number' && RETRY_STATUS_CODES.has(status) && attempt < RETRIES_PER_MODEL;
+        console.warn(`Gemini ${model} attempt ${attempt + 1} failed${canRetrySameModel ? ', retrying' : ', moving on'}`, lastErr.message);
+        if (canRetrySameModel) {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+          continue;
+        }
+        break; // try next model
+      }
+    }
+  }
+  throw lastErr ?? new Error('Gemini call failed for an unknown reason');
+}
+
+async function callGeminiModel(apiKey: string, model: string, imageBase64: string, mimeType: string) {
   const resp = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -150,12 +193,14 @@ async function callGemini(apiKey: string, imageBase64: string, mimeType: string)
 
   if (!resp.ok) {
     const errText = await resp.text().catch(() => '');
-    throw new Error(`Gemini API error ${resp.status}: ${errText}`);
+    const err = new Error(`Gemini API error ${resp.status} (${model}): ${errText}`) as Error & { status?: number };
+    err.status = resp.status;
+    throw err;
   }
 
   const data = await resp.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Empty response from Gemini');
+  if (!text) throw new Error(`Empty response from Gemini (${model})`);
 
   // responseMimeType: 'application/json' should return bare JSON, but
   // strip markdown fences defensively in case a model variant wraps it.
