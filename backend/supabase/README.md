@@ -1,6 +1,6 @@
 # Settlr — Supabase backend (guest-mode + RLS)
 
-Fifteen migrations, run in order:
+Sixteen migrations, run in order:
 
 1. `0001_schema.sql` — core trip tables: `trips`, `trip_members`, `expenses`, `expense_splits`, `settlements`, `favorites`. Requires `extensions` to be on the search path (see note below) since `gen_random_bytes()` lives there on hosted Supabase projects.
 2. `0002_rls_policies.sql` — enables RLS, locks `anon` out of every table, and adds `auth.uid()`-based policies so authenticated users can only see trips they own or belong to.
@@ -17,6 +17,7 @@ Fifteen migrations, run in order:
 13. `0013_bill_edit_parity.sql` — adds `update_bill_by_token` (rename + change currency) and `add_bill_member_by_token` / `update_bill_member_by_token` / `delete_bill_member_by_token`, giving bills the same post-creation edit parity trips have had since `0008`. Backs the frontend's new Edit Bill screen (which reuses Create Bill Split).
 14. `0014_expense_receipts.sql` — `add_expense_by_token`/`update_expense_by_token` gain a `p_receipt_path` param (`update_expense_by_token` also gets `p_clear_receipt`) so they can record the Storage object path from an uploaded receipt against `expenses.receipt_path` (a column that's existed since `0001` but was never wired up until now). Both functions are explicitly dropped before being recreated, since adding a parameter changes the function's signature — `create or replace` alone would've left the old signature behind as a separate overload instead of actually replacing it.
 15. `0015_receipt_storage_bucket.sql` — creates the private `receipts` Storage bucket and RLS policies restricting every operation to `(storage.foldername(name))[1] = auth.uid()::text`, i.e. everyone can only touch objects under their own user-id folder. **Can't be exercised by this project's pglite test harness** — the `storage` schema is a Supabase-platform feature, not something a bare embedded Postgres has — so this one needs a live check after deploying: upload a receipt as one account, confirm a second account can't list or fetch it.
+16. `0016_receipt_scan_rate_limit.sql` — creates `receipt_scan_log` (client IP + timestamp) with RLS enabled and **no policies at all**, so `anon`/`authenticated` get zero access and only the service role can touch it. This backs the `scan-receipt` Edge Function's own IP-based rate limit (see below) — a separate mechanism from `_check_rate_limit`/`_rpc_attempt_log` (`0010`), since that one only guards RPCs called through PostgREST, not an Edge Function calling out to a third-party API. Also adds `_prune_receipt_scan_log()`, a standalone helper (not currently scheduled) that deletes log rows older than 7 days.
 
 Note on `extensions.gen_random_bytes()`: on hosted Supabase projects, pgcrypto's functions are installed into the `extensions` schema rather than `public`. `0001` and `0005` each run `set search_path = public, extensions;` before creating anything that calls `gen_random_bytes()`, since every migration file runs in its own session and doesn't inherit an earlier file's `SET`.
 
@@ -124,6 +125,23 @@ Note on `extensions.gen_random_bytes()`: on hosted Supabase projects, pgcrypto's
 
 - **Removing a trip mate** (`delete_trip_member_by_token`) fails with a foreign-key violation (`23503`) if that person is referenced as an expense's `paid_by` — that FK is `ON DELETE RESTRICT` (see `0001`) specifically so removing someone doesn't silently orphan an expense's meaning. The frontend surfaces this as an alert rather than swallowing it. Their `expense_splits` and `settlements` rows, by contrast, cascade-delete along with them.
 
+## Edge Functions
+
+- **`scan-receipt`** (`backend/supabase/functions/scan-receipt/index.ts`) — the only Edge Function in the project. Called directly from the browser with a receipt photo (base64 + mime type); forwards it to Gemini's `generateContent` API with a prompt asking for strict JSON (one entry per line item, plus subtotal/tax/service/tip/total if present), and returns the parsed result. It never touches trip/bill data and needs no share token — it's a stateless OCR proxy, not part of the guest-token API surface above.
+
+  Why this has to be a server-side function rather than a plain `fetch()` from `index.html`: the Gemini API key is a secret, and anything in the HTML/JS is visible to anyone who views source (unlike the Supabase anon key, which is deliberately safe to expose because RLS is the real gate). The key lives only as an Edge Function secret, read via `Deno.env.get('GEMINI_API_KEY')`.
+
+  Deploy and configure:
+  ```
+  supabase secrets set GEMINI_API_KEY=<your key> --project-ref <ref>
+  supabase functions deploy scan-receipt --project-ref <ref>
+  ```
+  Optional secret `GEMINI_MODEL` overrides the default model (`gemini-2.5-flash`) without a redeploy — useful since Google's model lineup moves fast.
+
+  Rate limiting: every call first checks `receipt_scan_log` (via the service role client, bypassing RLS) for more than 15 scans from the same IP in the last hour, and rejects with a 429 if so — protecting the project's Gemini quota from being burned by one visitor or a script, independent of the Postgres-side rate limiter that guards `.rpc()` calls.
+
+  **Not testable via the pglite harness or in this sandbox** — Edge Functions require the Deno runtime and a real network call to Gemini, neither of which the local migration test harness has. Verify live after deploying: scan an actual receipt from the Bill Split dashboard and confirm the Review Scanned Items screen populates correctly.
+
 ## Still to do before this is production-ready
 
 - **Guest RPC parity is complete** — every mutation the frontend supports for trips and bill splits has a corresponding guest-token RPC as of `0008`, plus bill rename/currency/member-management parity as of `0013`.
@@ -133,3 +151,4 @@ Note on `extensions.gen_random_bytes()`: on hosted Supabase projects, pgcrypto's
 - **Receipt photo uploads are wired up (`0014`/`0015`)** — authenticated-only, uploaded client-side straight to the `receipts` Storage bucket, path recorded on `expenses.receipt_path` via the two expense RPCs. This was the last item on this list.
 - The rate limiter's IP-extraction (`request.headers` → `x-forwarded-for`) depends on PostgREST forwarding that header — worth a quick live check after deploying `0010` that it's actually populated on your project rather than silently falling back to the shared `'unknown'` bucket for every caller.
 - `0015`'s Storage bucket + RLS policies can't be exercised by the pglite harness (no `storage` schema in a bare embedded Postgres) — verify live: upload a receipt as one account, confirm a second account can't fetch or list it.
+- **AI receipt scanning is wired up (`0016` + the `scan-receipt` Edge Function)** — this was the last item on this list. Requires a Gemini API key and a manual `supabase functions deploy` (see "Edge Functions" above); not exercised by any automated test, so verify live with a real receipt photo after deploying.

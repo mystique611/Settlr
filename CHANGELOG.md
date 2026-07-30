@@ -2,6 +2,15 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-07-30 — AI receipt scanning for Bill Split (Gemini OCR)
+
+- New migration `0016_receipt_scan_rate_limit.sql`: a `receipt_scan_log` table (client IP + timestamp) with RLS enabled and no policies at all, so only the service role can touch it — backs a new per-IP rate limit that's separate from the existing `_check_rate_limit`/`_rpc_attempt_log` (`0010`), since this one guards an Edge Function calling out to a paid (if free-tier) third-party API, not a `.rpc()` call. Also adds `_prune_receipt_scan_log()` for cleanup.
+- New Edge Function `scan-receipt` (`backend/supabase/functions/scan-receipt/index.ts`): takes a receipt photo from the browser, forwards it to Gemini's vision API with a prompt requesting strict JSON (line items + subtotal/tax/service/tip/total), and returns the parsed result. Rate-limited to 15 scans/hour per IP. Requires a `GEMINI_API_KEY` secret and `supabase functions deploy scan-receipt` — see the updated README for exact setup steps. Not exercised by the pglite harness or any sandboxed test (needs the real Deno runtime + a live Gemini call) — verify live after deploying.
+- New "Scan Receipt" button on the Bill Split dashboard, next to Add Item. Photographing or uploading a receipt opens a new Review Scanned Items screen: each detected line shows an editable description/amount plus the same payable-by chips as manual entry (defaulting to everyone, since the AI has no way to know who actually shared what) — nothing is written to the bill until "Add items to bill" is tapped. Works in guest mode as well as signed-in accounts, since the scan never touches trip/bill data directly; it commits through the same `add_bill_item_by_token` RPC and equal-split math as the manual Add Item flow.
+- Showed a mockup of the review screen (matching the app's existing dark-theme card/chip styling) for approval before building it, same pattern as the earlier currency-selector feature.
+- Housekeeping note: `ARCHITECTURE.md` (added in the previous batch) had somehow ended up saved inside `.donotupload/` instead of the repo root — likely a sync timing issue right after it was first written. Recreated it at the correct root path before starting this batch; the stray copy in `.donotupload/` was left alone rather than deleted without asking.
+- Backed up to `260730-v01` before this batch.
+
 ## 2026-07-27 — PWA installability, real app icons, list-card icon fix, housekeeping audit, ARCHITECTURE.md
 
 - The app is now installable as a PWA: new `manifest.json` (name, theme colors matching the app's dark background, standalone display) and a minimal `sw.js` service worker that only caches the static shell (manifest + icons) — it deliberately never caches the page itself or any Supabase call, since every screen depends on live data. Registered from a small snippet right after the existing auth-state listener, guarded to only run over `http(s)://`.

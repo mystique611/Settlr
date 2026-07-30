@@ -999,6 +999,43 @@
   .receipt-attached-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .receipt-attached-row a { font-size: 12.5px; font-weight: 700; color: var(--accent); cursor: pointer; }
 
+  /* ---- Scan Receipt / Review Scanned Items ---- */
+  .scan-summary-card {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-md);
+    padding: 12px 14px; margin-bottom: 14px;
+  }
+  .scan-summary-icon {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .scan-summary-title { font-size: 13.5px; font-weight: 600; color: var(--text-primary); margin: 0; }
+  .scan-summary-sub { font-size: 12px; color: var(--text-tertiary); margin: 1px 0 0; }
+  .scan-review-item {
+    background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius-md);
+    padding: 12px 14px; margin-bottom: 10px;
+  }
+  .scan-review-item-fields { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .scan-review-desc {
+    flex: 1; min-width: 0; border: none; background: none; padding: 0;
+    font-size: 13.5px; font-weight: 500; color: var(--text-primary); font-family: inherit;
+  }
+  .scan-review-desc:focus { outline: none; }
+  .scan-review-amount {
+    width: 78px; text-align: right; border: none; background: none; padding: 0;
+    font-size: 13.5px; font-weight: 600; color: var(--text-primary); font-family: inherit;
+  }
+  .scan-review-amount:focus { outline: none; }
+  .scan-review-remove { color: var(--text-tertiary); cursor: pointer; flex-shrink: 0; font-size: 14px; }
+  .scan-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .scan-chip {
+    font-size: 12px; padding: 5px 11px; border-radius: 100px; cursor: pointer;
+    background: none; border: 1px solid var(--card-border); color: var(--text-tertiary);
+    font-family: inherit; transition: border-color 0.15s var(--ease), background 0.15s var(--ease), color 0.15s var(--ease);
+  }
+  .scan-chip.selected { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
   /* ---- Settle Up ---- */
   .settle-card {
     background: var(--card);
@@ -1733,10 +1770,17 @@
             <p class="section-title">Items</p>
           </div>
           <div id="billItemsList"></div>
-          <button class="add-mate-btn" onclick="openAddBillItem()" style="margin-top:4px;">
-            <i class="fa-solid fa-plus" style="font-size:16px;"></i>
-            Add Item
-          </button>
+          <div style="display:flex; gap:8px; margin-top:4px;">
+            <button class="add-mate-btn" onclick="openAddBillItem()" style="flex:1;">
+              <i class="fa-solid fa-plus" style="font-size:16px;"></i>
+              Add Item
+            </button>
+            <button class="add-mate-btn" id="scanReceiptBtn" onclick="scanReceiptForBill()" style="flex:1;">
+              <i class="fa-solid fa-camera" style="font-size:15px;"></i>
+              Scan Receipt
+            </button>
+          </div>
+          <input type="file" accept="image/*" capture="environment" id="scanReceiptFileInput" style="display:none;" onchange="handleScanReceiptFileSelected(event)">
 
           <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:18px;">
             <p class="section-title">Tax, service & tip</p>
@@ -1825,6 +1869,37 @@
         <div class="spacer"></div>
         <div class="bottom-actions">
           <button class="btn btn-primary" id="billItemSaveBtn" onclick="saveBillItem()">Save Item</button>
+        </div>
+      </section>
+
+      <!-- SCREEN 13b: Bill Split — review scanned receipt items -->
+      <section class="screen" data-screen="billsplitreview">
+        <div class="nav-row">
+          <button class="back-btn" onclick="cancelReviewScannedItems()">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 10px 0 16px;">
+          <h2 class="header-title">Review scanned items</h2>
+        </div>
+
+        <div class="scan-summary-card">
+          <div class="scan-summary-icon"><i class="fa-solid fa-receipt" style="font-size:17px;"></i></div>
+          <div style="flex:1; min-width:0;">
+            <p class="scan-summary-title" id="scanSummaryTitle">Receipt scanned</p>
+            <p class="scan-summary-sub" id="scanSummarySub"></p>
+          </div>
+        </div>
+
+        <p class="split-hint" style="margin:0 0 10px;">Tap a description or amount to fix it, and tap names to change who it's payable by.</p>
+
+        <div id="scanReviewItemsList"></div>
+
+        <div class="spacer"></div>
+        <div class="bottom-actions">
+          <button class="btn btn-primary" id="scanReviewSaveBtn" onclick="commitScannedItems()">Add items to bill</button>
+          <button class="btn btn-secondary" style="margin-top:8px;" onclick="cancelReviewScannedItems()">Cancel</button>
         </div>
       </section>
 
@@ -4969,6 +5044,226 @@
 
     window.editingBillItemId = null;
     touchBill(d.id);
+    go('billsplitdashboard');
+  }
+
+  // ---- Scan Receipt (OCR via the scan-receipt Edge Function) ----
+  // The photo itself never touches Supabase Storage or the bill's own
+  // data — it's sent once to the Edge Function, which forwards it to
+  // Gemini and hands back a plain item list. Everything after that
+  // (the Review Scanned Items screen, and the actual bill_items rows)
+  // is created through the exact same add_bill_item_by_token RPC and
+  // equal-split math as the manual Add Item flow.
+  const SCAN_MAX_BYTES = 8 * 1024 * 1024; // matches the Edge Function's own cap
+
+  function escapeAttr(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function scanReceiptForBill() {
+    document.getElementById('scanReceiptFileInput').click();
+  }
+
+  async function handleScanReceiptFileSelected(event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = ''; // allow picking the same file again later
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Receipts need to be an image file (JPG, PNG, HEIC, etc).');
+      return;
+    }
+    if (file.size > SCAN_MAX_BYTES) {
+      alert('That image is larger than 8 MB — try a smaller photo or a compressed export.');
+      return;
+    }
+
+    const btn = document.getElementById('scanReceiptBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="font-size:15px;"></i> Reading receipt…'; }
+
+    try {
+      const imageBase64 = await fileToBase64(file);
+      const { data, error } = await sb.functions.invoke('scan-receipt', {
+        body: { image_base64: imageBase64, mime_type: file.type }
+      });
+
+      if (error) {
+        console.error('Receipt scan failed', error);
+        alert('Could not read that receipt — check your connection and try again, or add items manually.');
+        return;
+      }
+      if (data && data.error) {
+        alert(data.error);
+        return;
+      }
+      if (!data || !data.items || !data.items.length) {
+        alert('Couldn\'t find any items on that receipt — try a clearer, well-lit photo, or add items manually.');
+        return;
+      }
+
+      openReviewScannedItems(data);
+    } catch (err) {
+      console.error('Receipt scan failed', err);
+      alert('Could not read that receipt — check your connection and try again, or add items manually.');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-camera" style="font-size:15px;"></i> Scan Receipt'; }
+    }
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // reader.result is a data: URL — strip the "data:image/...;base64," prefix.
+        const commaIdx = reader.result.indexOf(',');
+        resolve(reader.result.slice(commaIdx + 1));
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Every scanned item defaults to "payable by everyone currently in the
+  // bill" — the AI has no way to know who actually shared a dish, so
+  // this is the safest default; the reviewer narrows it down per item
+  // before anything is saved.
+  function openReviewScannedItems(data) {
+    const d = currentBill();
+    window.scannedItems = (data.items || []).map(it => ({
+      description: it.description,
+      amount: it.amount,
+      payable: new Set(d.mates)
+    }));
+    window.scannedReceiptMeta = data;
+    renderScanSummary();
+    renderScanReviewItems();
+    go('billsplitreview');
+  }
+
+  function renderScanSummary() {
+    const data = window.scannedReceiptMeta || {};
+    const d = currentBill();
+    const count = (window.scannedItems || []).length;
+    document.getElementById('scanSummaryTitle').textContent = count ? `${count} item${count === 1 ? '' : 's'} found` : 'No items found';
+    const bits = [];
+    if (data.total != null) bits.push(`${formatMoney(data.total, data.currency_guess || d.currency)} total`);
+    else if (data.subtotal != null) bits.push(`${formatMoney(data.subtotal, data.currency_guess || d.currency)} subtotal`);
+    if (data.currency_guess && data.currency_guess !== d.currency) bits.push(`Detected ${data.currency_guess} — this bill is in ${d.currency}`);
+    document.getElementById('scanSummarySub').textContent = bits.join(' · ') || 'Review the items below before adding them';
+  }
+
+  function renderScanReviewItems() {
+    const d = currentBill();
+    const list = document.getElementById('scanReviewItemsList');
+    const items = window.scannedItems || [];
+    if (!items.length) {
+      list.innerHTML = '<p class="guest-trips-empty">No items left to review — go back and rescan, or add items manually.</p>';
+      return;
+    }
+    list.innerHTML = items.map((it, idx) => `
+      <div class="scan-review-item">
+        <div class="scan-review-item-fields">
+          <input class="scan-review-desc" value="${escapeAttr(it.description)}" oninput="updateScanItemField(${idx}, 'description', this.value)" placeholder="Item description">
+          <input class="scan-review-amount" type="number" step="0.01" value="${it.amount}" oninput="updateScanItemField(${idx}, 'amount', this.value)">
+          <i class="fa-solid fa-trash scan-review-remove" onclick="removeScanReviewItem(${idx})" title="Remove"></i>
+        </div>
+        <div class="scan-chip-row">
+          ${d.mates.map(m => `<button type="button" class="scan-chip ${it.payable.has(m) ? 'selected' : ''}" onclick="toggleScanItemPayable(${idx}, ${JSON.stringify(m).replace(/"/g, '&quot;')})">${m}</button>`).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Description/amount edits update state directly without a full
+  // re-render, so typing doesn't fight the input's cursor position —
+  // same reasoning as the debounced bill-settings fields elsewhere.
+  function updateScanItemField(idx, field, value) {
+    const it = (window.scannedItems || [])[idx];
+    if (!it) return;
+    it[field] = field === 'amount' ? value : value;
+  }
+
+  function toggleScanItemPayable(idx, name) {
+    const it = (window.scannedItems || [])[idx];
+    if (!it) return;
+    if (it.payable.has(name)) { if (it.payable.size > 1) it.payable.delete(name); }
+    else it.payable.add(name);
+    renderScanReviewItems();
+  }
+
+  function removeScanReviewItem(idx) {
+    if (!window.scannedItems) return;
+    window.scannedItems.splice(idx, 1);
+    renderScanSummary();
+    renderScanReviewItems();
+  }
+
+  function cancelReviewScannedItems() {
+    window.scannedItems = null;
+    window.scannedReceiptMeta = null;
+    go('billsplitdashboard');
+  }
+
+  // Commits every reviewed item to the bill using the exact same
+  // equal-split math as the manual Add Item flow's "Split Equally"
+  // mode: the entered amount divides evenly across everyone still
+  // selected for that item, with the last person absorbing any
+  // rounding remainder. Each selected person becomes their own
+  // add_bill_item_by_token call, same as a manually-entered item.
+  async function commitScannedItems() {
+    const d = currentBill();
+    const items = (window.scannedItems || []).filter(it =>
+      it.description && String(it.description).trim() && parseFloat(it.amount) > 0 && it.payable.size > 0
+    );
+    if (!items.length) {
+      alert('Add at least one item with a description, an amount, and someone it\'s payable by.');
+      return;
+    }
+
+    const saveBtn = document.getElementById('scanReviewSaveBtn');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Adding…'; }
+
+    if (!d.memberIds || items.some(it => [...it.payable].some(m => !d.memberIds[m]))) {
+      await reloadBillFromSupabase(d.id);
+    }
+    if (!d.memberIds) {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Add items to bill'; }
+      alert('Could not match this bill\'s data. Try reopening the bill and saving again.');
+      return;
+    }
+
+    let saveErr = null;
+    for (const it of items) {
+      const description = String(it.description).trim();
+      const amount = Math.round(parseFloat(it.amount) * 100) / 100;
+      const selected = d.mates.filter(m => it.payable.has(m));
+      const count = selected.length;
+      const perPersonAmount = amount / count;
+      const entries = selected.map((m, i) => {
+        let amt = perPersonAmount;
+        if (i === count - 1) amt = amount - perPersonAmount * (count - 1);
+        return { owedBy: m, amount: Math.round(amt * 100) / 100 };
+      });
+      for (const entry of entries) {
+        if (!d.memberIds[entry.owedBy]) { saveErr = { message: `Could not match ${entry.owedBy} to this bill.` }; continue; }
+        const { error } = await sb.rpc('add_bill_item_by_token', {
+          p_token: d.shareToken, p_description: description, p_amount: entry.amount, p_owed_by: d.memberIds[entry.owedBy]
+        });
+        if (error) saveErr = error;
+      }
+    }
+
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Add items to bill'; }
+
+    if (saveErr) {
+      console.error('Could not save one or more scanned items', saveErr);
+      alert('Some items may not have saved — check the bill and try again for anything missing.\n\n' + saveErr.message);
+    }
+
+    window.scannedItems = null;
+    window.scannedReceiptMeta = null;
+    await reloadBillFromSupabase(d.id);
     go('billsplitdashboard');
   }
 
