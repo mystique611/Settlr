@@ -2566,19 +2566,20 @@
     b.discountExact = parseFloat(data.bill.discount_exact) || 0;
     b.memberIds = nameToId;
     // Trip-linked bill bookkeeping (null/undefined for a standalone Split
-    // a Bill). tripToken can't be read from the bill's own data — a bill
-    // only knows its parent trip's id — so it's resolved from whichever
-    // trip record is already loaded in this session (always true in
-    // practice, since the only way to reach a trip-linked bill is via
-    // that trip's own dashboard) and, once set, is left alone on
-    // subsequent reloads rather than re-resolved every time.
+    // a Bill). get_bill_by_token (0021) returns the parent trip's own
+    // share_token directly as `trip_share_token` — trusted fresh on
+    // every fetch, regardless of how this bill was opened (tapped from
+    // inside the trip, from a bookmarked bill link, from "Your Bills"
+    // before that list started hiding trip-linked bills, etc.). Fixed a
+    // real bug: this used to be resolved from whichever trip happened to
+    // already be loaded in memory that session, which silently failed
+    // (no error, just a bill whose total never synced to the trip's
+    // Settle Up) whenever a trip-linked bill was opened any way other
+    // than tapping its row in the trip's own expense list.
     b.tripId = data.bill.trip_id || null;
+    b.tripToken = data.trip_share_token || b.tripToken || null;
     b.linkedExpenseId = data.bill.linked_expense_id || null;
     b.memberTripMemberIds = nameToTripMemberId;
-    if (b.tripId && !b.tripToken) {
-      const t = window.allTrips && window.allTrips[b.tripId];
-      if (t && t.shareToken) b.tripToken = t.shareToken;
-    }
     b.updatedAt = Date.now();
   }
 
@@ -4983,7 +4984,10 @@
   function renderAccountBillsList() {
     const list = document.getElementById('accountBillsList');
     if (!list) return;
-    const bills = Object.values(window.allBills).filter(b => !b.isGuest && !b.isDemo).sort((a, b) => b.updatedAt - a.updatedAt);
+    // A trip-linked bill (created via a trip's "Add a Bill" button) only
+    // ever exists inside that trip — it shouldn't also show up as a
+    // separate standalone entry here.
+    const bills = Object.values(window.allBills).filter(b => !b.isGuest && !b.isDemo && !b.tripId).sort((a, b) => b.updatedAt - a.updatedAt);
     if (!bills.length) {
       list.innerHTML = '<p class="guest-trips-empty">No bill splits yet — split a receipt above.</p>';
       return;
@@ -5023,7 +5027,12 @@
   async function renderGuestBillsList() {
     const list = document.getElementById('guestBillsList');
     if (!list) return;
-    const records = (await getGuestTrips()).filter(r => r.type === 'bill' && r.data);
+    // Trip-linked bills are never saved to guest local storage in the
+    // first place (touchBill only persists when isGuest is true, and a
+    // trip-linked bill is always isGuest: false) — the tripId filter
+    // here is just a defensive belt-and-suspenders match for
+    // renderAccountBillsList's, in case that ever changes.
+    const records = (await getGuestTrips()).filter(r => r.type === 'bill' && r.data && !r.data.tripId);
     records.sort((a, b) => b.updatedAt - a.updatedAt);
     records.forEach(r => {
       window.allBills[r.id] = { ...cloneData(r.data), id: r.id, isGuest: true, updatedAt: r.updatedAt };

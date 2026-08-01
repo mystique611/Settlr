@@ -2,6 +2,15 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-08-01 — Fix: "Add a Bill" totals not reflecting in the trip's Settle Up
+
+Two related bugs reported right after the previous batch shipped, both about trip-linked bills.
+
+- **Root cause of the missing debt**: syncing a trip-linked bill's total into the trip's Settle Up needs the *parent trip's* own share token, but a bill has no way to read that from its own data. The frontend was resolving it from whatever trip happened to already be loaded in memory (`window.allTrips[bill.tripId]`) — which works when a bill is opened by tapping its row inside the trip's own expense list, but silently failed (no error, the sync function just quietly no-opped) whenever a trip-linked bill was opened any other way — most commonly via the account's "Your Bills" list, since that's exactly what the second bug below let happen.
+- New migration `0021_bill_trip_token.sql`: `get_bill_by_token` now also returns the parent trip's own `share_token` directly, as a top-level `trip_share_token` key, whenever `bills.trip_id` is set — same signature, no drop needed. The frontend now always trusts this fresh value on every fetch instead of depending on in-memory session state, so the sync works correctly no matter how the bill was opened (from the trip, from a bookmarked bill link, etc). Validated with pglite (4 checks) plus a standalone simulation of the exact "opened cold, no trip loaded" scenario that used to break — confirmed the debt now shows up correctly.
+- **"Your Bills" no longer lists trip-linked bills.** A bill created via a trip's "Add a Bill" button only ever belongs inside that trip — showing it as a second, separate entry in the account's own bill list was never intended and was also the main way people were hitting the sync bug above. `renderAccountBillsList()` now filters out any bill with a `tripId` set.
+- Verified both fixes together with a full pglite end-to-end simulation: create a trip, create a trip-linked bill, add an item, "cold-open" the bill exactly as if from a session that never loaded the trip, sync, then re-derive the trip's net balances — confirmed the payer is credited and the other person shows an actual debt.
+
 ## 2026-08-01 — Shared bill items, item/expense notes, and "Add a Bill" inside a Trip
 
 Showed a mockup of all three pieces (grouped item rows, the note field, and the new trip flow) before building, per the usual pattern. Backed up to `260801-v02` before this batch, including a full snapshot of the migrations folder given the scale of the schema changes.
