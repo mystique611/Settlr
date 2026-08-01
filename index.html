@@ -5693,7 +5693,14 @@
 
     ctx.font = 'bold 13px sans-serif';
     ctx.fillStyle = '#0f172a';
-    ctx.fillText(`Payable to ${d.payer}`, 24, y);
+    const payableTitle = `Payable to ${d.payer}`;
+    ctx.fillText(payableTitle, 24, y);
+    // Smaller, lighter suffix on the same line, right after the bold
+    // title — measureText so it doesn't overlap regardless of name length.
+    const titleWidth = ctx.measureText(payableTitle).width;
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.fillText(' (incl. tax & GST)', 24 + titleWidth, y);
     y += lineHeight;
     ctx.font = '13px sans-serif';
     if (!others.length) {

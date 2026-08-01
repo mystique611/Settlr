@@ -2,6 +2,10 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-08-01 — Save as Image: label the payable amount as tax/GST-inclusive
+
+- The "Payable to X" line in the Save as Image export now reads "Payable to Alex (incl. tax & GST)" — a smaller, lighter suffix drawn right after the bold name so it doesn't overlap regardless of name length.
+
 ## 2026-08-01 — Bill Split fixes: discount persistence, stable item order, Settle Up layout
 
 - Showed a mockup of the dashboard item row (with the discount line) and the reordered Save as Image layout before building.
