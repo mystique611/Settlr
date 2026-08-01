@@ -2,6 +2,16 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-08-01 — Bill Split fixes: discount persistence, stable item order, Settle Up layout
+
+- Showed a mockup of the dashboard item row (with the discount line) and the reordered Save as Image layout before building.
+- New migration `0018_bill_item_discount_and_order.sql`: adds `bill_items.discount_pct`, and a `p_discount_pct` param on both `add_bill_item_by_token` and `update_bill_item_by_token`. Validated with pglite: the column round-trips through `get_bill_by_token`, and items keep their position after an in-place edit.
+- **Discount % now persists.** Yesterday's discount feature applied the discount to the saved amount but never recorded the percent itself — reopening any discounted item (scanned or manually added) always showed 0%. Fixed at the root: the percent is now stored per item, and the Amount field reconstructs the pre-discount value on reopen (`amount / (1 - discount_pct / 100)`) so editing shows exactly what was typed in originally, not the discounted result.
+- **Editing an item no longer moves it.** Two compounding bugs: `get_bill_by_token` had no `ORDER BY` on items at all, and every edit — even a simple rename — went through delete-then-recreate, which got the row a new id and pushed it to wherever an unordered read happened to put it. Fixed both: items now come back ordered by `created_at`, and editing calls `update_bill_item_by_token` to change the row in place. (Splitting one item into several people still has to add new rows for the extra people — no way around that — but the first person keeps the original row and position.)
+- **Dashboard item rows now show the discount.** A small green "−$1.00 (10%)" line appears above the price whenever an item has a discount, so the value and the percent are both visible without opening Edit.
+- **Save as Image leads with the payable summary.** "Payable to X" now draws right after the header, before the item list and breakdown, instead of at the very bottom — matches the mockup shown before building.
+- Backed up to `260801-v02` before this batch.
+
 ## 2026-08-01 — Bill Split discounts (per-item and bill-level)
 
 - Showed a mockup of both entry points (Add Item, scanned-receipt review, and the dashboard's tax section) before building, per the usual pattern.

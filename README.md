@@ -17,7 +17,7 @@ Settlr/
 └── backend/
     └── supabase/
         ├── README.md                      ← backend architecture + API reference
-        ├── migrations/                    ← 17 SQL migrations, run in order
+        ├── migrations/                    ← 18 SQL migrations, run in order
         └── functions/
             └── scan-receipt/              ← Edge Function: proxies receipt photos to Gemini for OCR
 ```

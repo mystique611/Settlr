@@ -830,6 +830,7 @@
   .expense-title { font-size: 14.5px; font-weight: 600; margin: 0 0 2px; }
   .expense-sub { font-size: 12px; color: var(--text-secondary); margin: 0; }
   .expense-amount { font-size: 14.5px; font-weight: 700; text-align: right; white-space: nowrap; }
+  .item-discount-note { font-size: 11px; font-weight: 600; color: var(--success); text-align: right; white-space: nowrap; margin: 0 0 1px; }
   .expense-amount-sub { font-size: 11px; color: var(--text-tertiary); text-align: right; }
 
   .dash-scroll {
@@ -2458,6 +2459,7 @@
       id: it.id,
       description: it.description,
       amount: parseFloat(it.amount),
+      discountPct: parseFloat(it.discount_pct) || 0,
       owedBy: idToName[it.owed_by] || '?'
     }));
 
@@ -4869,7 +4871,13 @@
       list.innerHTML = '<p class="guest-trips-empty">No items yet — tap Add Item to log the first one.</p>';
       return;
     }
-    list.innerHTML = d.items.map(it => `
+    list.innerHTML = d.items.map(it => {
+      const discountPct = it.discountPct || 0;
+      // it.amount is already net of the discount — back out the
+      // original to show how much was actually taken off, in the
+      // bill's currency rather than as an abstract percent alone.
+      const discountValue = discountPct > 0 ? (it.amount / (1 - discountPct / 100)) - it.amount : 0;
+      return `
       <div class="expense-item">
         <div class="mate-avatar" style="flex-shrink:0;">${it.owedBy[0]}</div>
         <div style="flex:1;">
@@ -4877,12 +4885,14 @@
           <p class="expense-sub">Payable by ${it.owedBy}</p>
         </div>
         <div style="text-align:right;">
+          ${discountPct > 0 ? `<p class="item-discount-note">&minus;${formatMoney(discountValue, d.currency)} (${discountPct}%)</p>` : ''}
           <p class="expense-amount">${formatMoney(it.amount, d.currency)}</p>
         </div>
         <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="editBillItem('${it.id}')" title="Edit item">${svgIcon('pen', 13)}</button>
         <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="deleteBillItem('${it.id}')" title="Delete item">${svgIcon('trash', 13)}</button>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   async function deleteBillItem(id) {
@@ -4932,21 +4942,23 @@
     window.billItemMode = 'equal';
     document.querySelectorAll('#billItemModeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
 
-    // Discount always resets to 0% on open, even when editing — the
-    // amount shown for an existing item is already net of whatever
-    // discount was applied when it was first saved (no separate
-    // pre-discount value is stored), so re-discounting from here would
-    // double it up.
-    document.getElementById('billItemDiscountPct').value = '';
-
     const item = isEdit ? d.items.find(it => String(it.id) === String(window.editingBillItemId)) : null;
     if (item) {
       descInput.value = item.description;
-      amtInput.value = item.amount;
+      // item.amount is already net of item.discountPct — reconstruct
+      // the pre-discount amount so the Amount field shows what was
+      // actually typed in originally, not the discounted result.
+      // (Safe division: a 100% discount is rejected before ever being
+      // saved, so discountPct here is always < 100.)
+      const discountPct = item.discountPct || 0;
+      const originalAmount = discountPct > 0 ? item.amount / (1 - discountPct / 100) : item.amount;
+      amtInput.value = Math.round(originalAmount * 100) / 100;
+      document.getElementById('billItemDiscountPct').value = discountPct || '';
       window.selectedBillItemOwedBy = new Set([item.owedBy]);
     } else {
       descInput.value = '';
       amtInput.value = '';
+      document.getElementById('billItemDiscountPct').value = '';
       window.selectedBillItemOwedBy = new Set([d.payer]);
     }
     renderBillItemOwedByEditor();
@@ -5064,27 +5076,39 @@
         return;
       }
 
-      // Editing an item that's turning into more than one (or staying
-      // just one) is simplest as delete-then-recreate rather than
-      // stretching update_bill_item_by_token to cover a 1-to-many change.
-      if (isEdit) {
-        const { error: delErr } = await sb.rpc('delete_bill_item_by_token', {
-          p_token: d.shareToken, p_item_id: window.editingBillItemId
-        });
-        if (delErr) {
-          if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Changes'; }
-          console.error('Could not update this item', delErr);
-          alert('Could not save this item — check your connection and try again.\n\n' + delErr.message);
-          return;
-        }
-      }
-
+      // Editing keeps the original row's id (and so its position in the
+      // list) by updating it in place via update_bill_item_by_token,
+      // rather than the old delete-then-recreate — that always got a
+      // fresh id/created_at, which is why edited items used to jump to
+      // a different spot in the list. Splitting one item into several
+      // people is the one case that still has to add new rows (there's
+      // no getting around needing more than one row for that) — the
+      // first selected person reuses the original row/position, and
+      // anyone after them becomes a genuinely new row appended at the end.
       let saveErr = null;
-      for (const entry of entries) {
-        const { error } = await sb.rpc('add_bill_item_by_token', {
-          p_token: d.shareToken, p_description: description, p_amount: entry.amount, p_owed_by: d.memberIds[entry.owedBy]
+      if (isEdit) {
+        const [first, ...rest] = entries;
+        const { error: updErr } = await sb.rpc('update_bill_item_by_token', {
+          p_token: d.shareToken, p_item_id: window.editingBillItemId,
+          p_description: description, p_amount: first.amount, p_owed_by: d.memberIds[first.owedBy],
+          p_discount_pct: discountPct
         });
-        if (error) saveErr = error;
+        if (updErr) saveErr = updErr;
+        for (const entry of rest) {
+          const { error } = await sb.rpc('add_bill_item_by_token', {
+            p_token: d.shareToken, p_description: description, p_amount: entry.amount,
+            p_owed_by: d.memberIds[entry.owedBy], p_discount_pct: discountPct
+          });
+          if (error) saveErr = error;
+        }
+      } else {
+        for (const entry of entries) {
+          const { error } = await sb.rpc('add_bill_item_by_token', {
+            p_token: d.shareToken, p_description: description, p_amount: entry.amount,
+            p_owed_by: d.memberIds[entry.owedBy], p_discount_pct: discountPct
+          });
+          if (error) saveErr = error;
+        }
       }
 
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Save Changes' : 'Save Item'; }
@@ -5102,12 +5126,25 @@
     }
 
     // ── Local-only bill (authenticated demo seed) ───────────
+    // Same in-place-update reasoning as the Supabase path above: reuse
+    // the original item's id/index for the first entry so it doesn't
+    // jump position, only append genuinely new rows for the rest.
     if (isEdit) {
-      d.items = d.items.filter(it => String(it.id) !== String(window.editingBillItemId));
+      const idx = d.items.findIndex(it => String(it.id) === String(window.editingBillItemId));
+      const [first, ...rest] = entries;
+      if (idx !== -1 && first) {
+        d.items[idx] = { id: d.items[idx].id, description, amount: first.amount, owedBy: first.owedBy, discountPct };
+      } else if (first) {
+        d.items.push({ id: Date.now(), description, amount: first.amount, owedBy: first.owedBy, discountPct });
+      }
+      rest.forEach((entry, i) => {
+        d.items.push({ id: Date.now() + i + 1, description, amount: entry.amount, owedBy: entry.owedBy, discountPct });
+      });
+    } else {
+      entries.forEach((entry, i) => {
+        d.items.push({ id: Date.now() + i, description, amount: entry.amount, owedBy: entry.owedBy, discountPct });
+      });
     }
-    entries.forEach((entry, i) => {
-      d.items.push({ id: Date.now() + i, description, amount: entry.amount, owedBy: entry.owedBy });
-    });
 
     window.editingBillItemId = null;
     touchBill(d.id);
@@ -5354,7 +5391,8 @@
       for (const entry of entries) {
         if (!d.memberIds[entry.owedBy]) { saveErr = { message: `Could not match ${entry.owedBy} to this bill.` }; continue; }
         const { error } = await sb.rpc('add_bill_item_by_token', {
-          p_token: d.shareToken, p_description: description, p_amount: entry.amount, p_owed_by: d.memberIds[entry.owedBy]
+          p_token: d.shareToken, p_description: description, p_amount: entry.amount,
+          p_owed_by: d.memberIds[entry.owedBy], p_discount_pct: discountPct
         });
         if (error) saveErr = error;
       }
@@ -5620,12 +5658,18 @@
 
     const lineHeight = 26;
     const width = 480;
+    const payableRows = Math.max(others.length, 1);
+    const payableHeight = lineHeight + payableRows * lineHeight;
     const itemsHeight = groups.length
       ? groups.reduce((s, g) => s + lineHeight + g.items.length * lineHeight, 0)
       : lineHeight;
     const breakdownRows = breakdownRowsData.length + 1;
     const footerHeight = 46;
-    const height = 130 + itemsHeight + 30 + breakdownRows * lineHeight + 50 + Math.max(others.length, 1) * lineHeight + 30 + footerHeight;
+    // Order: header, Payable summary (moved to the top so the one
+    // number people actually need — who owes what — doesn't require
+    // scrolling past every line item first), items, breakdown/total,
+    // footer.
+    const height = 100 + 24 + payableHeight + 28 + itemsHeight + 28 + breakdownRows * lineHeight + 30 + footerHeight;
 
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -5644,6 +5688,30 @@
 
     let y = 100;
     ctx.strokeStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
+    y += 24;
+
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(`Payable to ${d.payer}`, 24, y);
+    y += lineHeight;
+    ctx.font = '13px sans-serif';
+    if (!others.length) {
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('Nobody else owes on this bill.', 24, y);
+      y += lineHeight;
+    } else {
+      others.forEach(m => {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(m, 24, y);
+        ctx.textAlign = 'right';
+        ctx.fillText(formatMoney(totals.perPerson[m] || 0, d.currency), width - 24, y);
+        ctx.textAlign = 'left';
+        y += lineHeight;
+      });
+    }
+
+    y += 4;
     ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
     y += 24;
 
@@ -5695,22 +5763,6 @@
     ctx.fillText(formatMoney(totals.total, d.currency), width - 24, y);
     ctx.textAlign = 'left';
     y += 34;
-
-    ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
-    y += 24;
-
-    ctx.font = 'bold 13px sans-serif';
-    ctx.fillText(`Payable to ${d.payer}`, 24, y);
-    y += lineHeight;
-    ctx.font = '13px sans-serif';
-    others.forEach(m => {
-      ctx.fillStyle = '#0f172a';
-      ctx.fillText(m, 24, y);
-      ctx.textAlign = 'right';
-      ctx.fillText(formatMoney(totals.perPerson[m] || 0, d.currency), width - 24, y);
-      ctx.textAlign = 'left';
-      y += lineHeight;
-    });
 
     // Footer credit, centered at the bottom of the image.
     y = height - footerHeight / 2 - 4;
