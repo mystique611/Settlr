@@ -829,6 +829,7 @@
   }
   .expense-title { font-size: 14.5px; font-weight: 600; margin: 0 0 2px; }
   .expense-sub { font-size: 12px; color: var(--text-secondary); margin: 0; }
+  .item-note-text { font-size: 11.5px; color: var(--text-tertiary); font-style: italic; margin: 1px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .expense-amount { font-size: 14.5px; font-weight: 700; text-align: right; white-space: nowrap; }
   .item-discount-note { font-size: 11px; font-weight: 600; color: var(--success); text-align: right; white-space: nowrap; margin: 0 0 1px; }
   .expense-amount-sub { font-size: 11px; color: var(--text-tertiary); text-align: right; }
@@ -1038,6 +1039,13 @@
   .scan-review-discount-input:focus { outline: none; border-color: var(--success); }
   .scan-review-discount-input::-webkit-outer-spin-button, .scan-review-discount-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .discount-result { font-size: 12px; color: var(--success); font-weight: 600; margin-left: 2px; }
+  .scan-review-note {
+    display: block; width: 100%; border: 1px solid var(--card-border);
+    background: var(--input-bg); border-radius: 8px; padding: 6px 9px; margin-bottom: 10px;
+    font-size: 12.5px; color: var(--text-primary); font-family: inherit; box-sizing: border-box;
+  }
+  .scan-review-note:focus { outline: none; border-color: var(--accent); }
+  .scan-review-note::placeholder { color: var(--text-tertiary); }
   .scan-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
   .scan-chip {
     font-size: 12px; padding: 5px 11px; border-radius: 100px; cursor: pointer;
@@ -1403,6 +1411,10 @@
           <i class="fa-solid fa-plus" style="font-size:16px;"></i>
           Add Expense
         </button>
+        <button class="fab-add" id="addTripBillFab" style="margin-top:10px; background:var(--card); color:var(--text-primary); box-shadow:none; border:1px solid var(--card-border);" onclick="openAddTripBill()">
+          <i class="fa-solid fa-receipt" style="font-size:15px;"></i>
+          Add a Bill
+        </button>
       </section>
 
       <!-- SCREEN 8a2: All Expenses -->
@@ -1476,6 +1488,11 @@
         </div>
 
         <div class="field">
+          <label class="field-label">Note <span style="color:var(--text-tertiary); font-weight:400;">(optional)</span></label>
+          <input class="field-input" id="expNote" type="text" placeholder="e.g. Split for the group room" maxlength="200">
+        </div>
+
+        <div class="field">
           <label class="field-label">Receipt</label>
           <input type="file" accept="image/*" id="receiptFileInput" style="display:none;" onchange="handleReceiptFileSelected(event)">
           <button type="button" class="add-mate-btn" id="receiptBtn" onclick="attachReceipt()">
@@ -1494,6 +1511,41 @@
         <div class="spacer"></div>
         <div class="bottom-actions">
           <button class="btn btn-primary" id="saveExpenseBtn" onclick="saveExpense()">Save Expense</button>
+        </div>
+      </section>
+
+      <!-- SCREEN 8b2: Add a Bill (trip-linked Bill Split) -->
+      <section class="screen" data-screen="tripbillcreate">
+        <div class="nav-row">
+          <button class="back-btn" onclick="go('dashboard')">
+            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
+            Back
+          </button>
+        </div>
+        <div class="header-block" style="margin: 10px 0 16px;">
+          <p class="header-eyebrow">Add a Bill</p>
+          <h2 class="header-title">New itemized bill</h2>
+          <p class="header-desc">Splits like a regular Bill Split, but stays linked to this trip — everyone splitting it comes straight from your trip mates.</p>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Bill name</label>
+          <input class="field-input" id="tripBillNameInput" type="text" placeholder="e.g. Dinner at Sardine">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Currency</label>
+          <select class="field-input" id="tripBillCurrencySelect" style="padding:13px 14px;"></select>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Paid by</label>
+          <select class="field-input" id="tripBillPaidBySelect" style="padding:13px 14px;"></select>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="bottom-actions">
+          <button class="btn btn-primary" id="tripBillCreateBtn" onclick="createTripBill()">Create Bill</button>
         </div>
       </section>
 
@@ -1746,7 +1798,7 @@
       <!-- SCREEN 12: Bill Split — dashboard -->
       <section class="screen" data-screen="billsplitdashboard">
         <div class="nav-row">
-          <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
+          <button class="back-btn" onclick="backFromBillDashboard()">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
           </button>
@@ -1879,6 +1931,11 @@
         </div>
 
         <div class="field">
+          <label class="field-label">Note <span style="color:var(--text-tertiary); font-weight:400;">(optional)</span></label>
+          <input class="field-input" id="billItemNote" type="text" placeholder="e.g. No mushrooms please" maxlength="200">
+        </div>
+
+        <div class="field">
           <label class="field-label">Split mode</label>
           <div class="tab-switch" id="billItemModeTabs" style="margin-bottom:12px;">
             <button class="tab-btn active" onclick="setBillItemMode('equal')">Split Equally</button>
@@ -2003,7 +2060,10 @@
     ellipsis: 'fa-ellipsis',
     eye: 'fa-eye',
     pen: 'fa-pen',
-    trash: 'fa-trash'
+    trash: 'fa-trash',
+    users: 'fa-user-group',
+    receipt: 'fa-receipt',
+    chevron: 'fa-chevron-right'
   };
   function svgIcon(name, size) {
     size = size || 16;
@@ -2110,6 +2170,14 @@
       document.getElementById('addExpenseTitle').textContent = isEdit ? 'Edit Expense' : 'Add Expense';
       document.getElementById('saveExpenseBtn').textContent = isEdit ? 'Save Changes' : 'Save Expense';
       if (isEdit) applyExpenseToForm(window.editingExpenseId);
+    }
+    if (name === 'tripbillcreate') {
+      const t = currentTrip();
+      document.getElementById('tripBillNameInput').value = '';
+      const { home, travel } = t.currencies;
+      const codes = [home, ...travel.filter(c => c !== home)];
+      document.getElementById('tripBillCurrencySelect').innerHTML = codes.map(c => `<option value="${c}">${c}</option>`).join('');
+      document.getElementById('tripBillPaidBySelect').innerHTML = t.mates.map(m => `<option value="${m}">${m}</option>`).join('');
     }
     if (name === 'settleup') {
       const t = currentTrip();
@@ -2411,7 +2479,9 @@
       paidBy: idToName[e.paid_by] || '?',
       splitLabel: SPLIT_LABELS[e.split_type] || 'Split equally',
       sub: '',
+      note: e.note || '',
       receiptPath: e.receipt_path || null,
+      linkedBillId: e.linked_bill_id || null,
       splits: (data.expense_splits || [])
         .filter(s => s.expense_id === e.id)
         .map(s => ({ member: idToName[s.trip_member_id] || '?', share: parseFloat(s.owed_amount) }))
@@ -2430,6 +2500,15 @@
     t.expenses = expenses;
     t.settledHistory = settledHistory;
     t.memberIds = nameToId;
+    // Trip-linked bills (created via "Add a Bill") — each one's own
+    // share_token, so tapping its mirrored expense can open the
+    // itemized Bill Split view directly without a separate lookup.
+    t.bills = (data.bills || []).map(b => ({
+      id: b.id,
+      name: b.name,
+      shareToken: b.share_token,
+      linkedExpenseId: b.linked_expense_id || null
+    }));
     t.updatedAt = Date.now();
   }
 
@@ -2453,13 +2532,20 @@
   function applySupabaseBillData(b, data) {
     const idToName = {};
     const nameToId = {};
-    data.members.forEach(m => { idToName[m.id] = m.display_name; nameToId[m.display_name] = m.id; });
+    const nameToTripMemberId = {};
+    data.members.forEach(m => {
+      idToName[m.id] = m.display_name;
+      nameToId[m.display_name] = m.id;
+      if (m.trip_member_id) nameToTripMemberId[m.display_name] = m.trip_member_id;
+    });
 
     const items = (data.items || []).map(it => ({
       id: it.id,
       description: it.description,
       amount: parseFloat(it.amount),
       discountPct: parseFloat(it.discount_pct) || 0,
+      note: it.note || '',
+      splitGroupId: it.split_group_id || null,
       owedBy: idToName[it.owed_by] || '?'
     }));
 
@@ -2479,6 +2565,20 @@
     b.discountPercent = parseFloat(data.bill.discount_percent) || 0;
     b.discountExact = parseFloat(data.bill.discount_exact) || 0;
     b.memberIds = nameToId;
+    // Trip-linked bill bookkeeping (null/undefined for a standalone Split
+    // a Bill). tripToken can't be read from the bill's own data — a bill
+    // only knows its parent trip's id — so it's resolved from whichever
+    // trip record is already loaded in this session (always true in
+    // practice, since the only way to reach a trip-linked bill is via
+    // that trip's own dashboard) and, once set, is left alone on
+    // subsequent reloads rather than re-resolved every time.
+    b.tripId = data.bill.trip_id || null;
+    b.linkedExpenseId = data.bill.linked_expense_id || null;
+    b.memberTripMemberIds = nameToTripMemberId;
+    if (b.tripId && !b.tripToken) {
+      const t = window.allTrips && window.allTrips[b.tripId];
+      if (t && t.shareToken) b.tripToken = t.shareToken;
+    }
     b.updatedAt = Date.now();
   }
 
@@ -2526,6 +2626,25 @@
     return true;
   }
 
+  // A trip-linked bill (created via "Add a Bill", or opened by tapping
+  // its collapsed row in the trip's expense list) belongs to a trip and
+  // should return there — every other bill (a standalone Split a Bill)
+  // returns to the account home / guest list as before.
+  async function backFromBillDashboard() {
+    const d = currentBill();
+    if (d && d.tripId && window.allTrips[d.tripId]) {
+      window.currentTripId = d.tripId;
+      // Refresh the trip so its expense list picks up whatever this bill
+      // just changed — a newly-created bill's first item, an edited
+      // total, etc. — rather than showing what was cached before this
+      // bill was opened.
+      if (window.allTrips[d.tripId].shareToken) await reloadTripFromSupabase(d.tripId);
+      go('dashboard');
+      return;
+    }
+    go(window.isAuthenticated ? 'accounthome' : 'guest');
+  }
+
   // Bill settings (payer/tax/service/GST/tip) fire on every keystroke
   // locally (see onBillTaxFieldsChange etc. below) — pushing to Supabase
   // on every keystroke would be both chatty and, if followed by a
@@ -2554,6 +2673,7 @@
         p_discount_exact: d.discountExact
       });
       if (error) console.error('Could not save bill settings to Supabase', error);
+      else await syncTripLinkedBillExpense(d);
     }, 600);
   }
 
@@ -3567,14 +3687,38 @@
     }
     const home = t.currencies.home;
     list.innerHTML = items.map(e => {
+      // An expense created via "Add a Bill" mirrors a trip-linked bill's
+      // total — shown as one collapsed row here (itemized detail and
+      // per-person owed amounts live in the bill's own dashboard, one
+      // tap away) rather than duplicating that whole breakdown inline.
+      const linkedBill = e.linkedBillId ? (t.bills || []).find(b => b.id === e.linkedBillId) : null;
+      if (linkedBill) {
+        return `
+          <div class="expense-item" style="cursor:pointer;" onclick="openTripBillFromExpense('${linkedBill.id}')">
+            <div class="expense-icon">${svgIcon('receipt', 17)}</div>
+            <div style="flex:1; min-width:0;">
+              <p class="expense-title">${e.description}</p>
+              <p class="expense-sub">Bill · Paid by ${e.paidBy}</p>
+              ${e.note ? `<p class="item-note-text">${escapeAttr(e.note)}</p>` : ''}
+            </div>
+            <div style="text-align:right;">
+              <p class="expense-amount">${formatMoney(e.amount, e.currency)}</p>
+              ${e.currency !== home ? `<p class="expense-amount-sub">${formatMoney(convertAmount(e.amount, e.currency, home), home)}</p>` : ''}
+            </div>
+            <i class="fa-solid fa-chevron-right" style="font-size:13px; color:var(--text-tertiary); flex-shrink:0;"></i>
+          </div>
+        `;
+      }
+
       const meta = CATEGORY_META[e.category] || CATEGORY_META.other;
       const showHomeEquivalent = e.currency !== home;
       return `
         <div class="expense-item">
           <div class="expense-icon">${svgIcon(meta.icon, 17)}</div>
-          <div style="flex:1;">
+          <div style="flex:1; min-width:0;">
             <p class="expense-title">${e.description}</p>
             <p class="expense-sub">Paid by ${e.paidBy} · ${e.splitLabel}</p>
+            ${e.note ? `<p class="item-note-text">${escapeAttr(e.note)}</p>` : ''}
           </div>
           <div style="text-align:right;">
             <p class="expense-amount">${formatMoney(e.amount, e.currency)}</p>
@@ -3586,6 +3730,33 @@
         </div>
       `;
     }).join('');
+  }
+
+  // Opens a trip-linked bill's own itemized Bill Split dashboard —
+  // tapping a bill-backed row in the trip's expense list, per the "tap
+  // inside to see the full bill items and payable amount per person"
+  // design. Re-fetches fresh (rather than trusting whatever's cached in
+  // t.bills) so item edits made elsewhere are reflected immediately.
+  async function openTripBillFromExpense(billId) {
+    const t = currentTrip();
+    const billMeta = (t.bills || []).find(b => b.id === billId);
+    if (!billMeta || !billMeta.shareToken) {
+      alert('Could not find this bill — try reloading the trip.');
+      return;
+    }
+    const { data, error } = await sb.rpc('get_bill_by_token', { p_token: billMeta.shareToken });
+    if (error) {
+      console.error('Could not load the linked bill', error);
+      alert('Could not open this bill — check your connection and try again.\n\n' + error.message);
+      return;
+    }
+    const bill = window.allBills[billId] || { id: billId, link: billShareLink(billMeta.shareToken), shareToken: billMeta.shareToken, isGuest: false };
+    bill.tripId = t.id;
+    bill.tripToken = t.shareToken;
+    applySupabaseBillData(bill, data);
+    window.allBills[billId] = bill;
+    window.currentBillId = billId;
+    go('billsplitdashboard');
   }
 
   // Expense ids are strings from onclick either way (a UUID for
@@ -3676,8 +3847,10 @@
     const cur = document.getElementById('expCurrency');
     const paidBy = document.getElementById('expPaidBy');
     renderExpensePaidByOptions();
+    const noteInput = document.getElementById('expNote');
     if (desc) desc.value = '';
     if (amt) amt.value = '';
+    if (noteInput) noteInput.value = '';
     if (cur) cur.value = t.currencies.home;
     if (paidBy) paidBy.value = t.mates[0];
     selectedCategory = 'food';
@@ -3936,6 +4109,7 @@
   async function saveExpense() {
     const description = (document.getElementById('expDescription').value || '').trim();
     const amount = parseFloat(document.getElementById('expAmount').value) || 0;
+    const note = (document.getElementById('expNote').value || '').trim() || null;
     const currency = document.getElementById('expCurrency').value;
     const paidBy = document.getElementById('expPaidBy').value;
 
@@ -3994,7 +4168,8 @@
         // Only ever a freshly-uploaded path or null — leaving an
         // untouched existing receipt alone is update_expense_by_token's
         // job via p_clear_receipt below, not something this field does.
-        p_receipt_path: window.currentExpenseReceiptPath || null
+        p_receipt_path: window.currentExpenseReceiptPath || null,
+        p_note: note
       };
       // add_expense_by_token has no p_clear_receipt param (nothing to
       // clear on a brand-new expense), so this only gets added for edits.
@@ -4033,7 +4208,7 @@
       if (idx !== -1) {
         t.expenses[idx] = {
           ...t.expenses[idx],
-          description, category: selectedCategory, amount, currency, paidBy, splitLabel, splits, receiptPath
+          description, category: selectedCategory, amount, currency, paidBy, splitLabel, splits, receiptPath, note
         };
       }
       window.editingExpenseId = null;
@@ -4047,6 +4222,7 @@
         paidBy,
         splitLabel,
         receiptPath,
+        note,
         sub: '',
         splits
       });
@@ -4065,6 +4241,59 @@
     go('addexpense');
   }
 
+  // ---- Open Add a Bill (trip-linked Bill Split creation) ----
+  function openAddTripBill() {
+    go('tripbillcreate');
+  }
+
+  // Creates a trip-linked bill (create_trip_bill_by_token — see migration
+  // 0020) and opens straight into its normal Bill Split dashboard. Its
+  // members are auto-populated from this trip's own mates server-side,
+  // so unlike createBillSplit() there's no "who's splitting this" step
+  // here at all. Only meaningful for Supabase-backed trips (share_token
+  // required) — Add a Bill isn't offered for local-only demo trips.
+  async function createTripBill() {
+    const t = currentTrip();
+    if (!t.shareToken) {
+      alert('Add a Bill needs this trip to be saved online first.');
+      return;
+    }
+    const nameInput = document.getElementById('tripBillNameInput');
+    const name = (nameInput && nameInput.value.trim()) || 'Bill';
+    const currency = document.getElementById('tripBillCurrencySelect').value;
+    const paidBy = document.getElementById('tripBillPaidBySelect').value;
+    const payerTripMemberId = (t.memberIds && t.memberIds[paidBy]) || null;
+
+    const btn = document.getElementById('tripBillCreateBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+
+    const { data, error } = await sb.rpc('create_trip_bill_by_token', {
+      p_trip_token: t.shareToken, p_name: name, p_currency: currency,
+      p_payer_trip_member_id: payerTripMemberId
+    });
+
+    if (error) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Create Bill'; }
+      console.error('Could not create trip-linked bill', error);
+      alert('Could not create the bill — check your connection and try again.\n\n' + error.message);
+      return;
+    }
+
+    const bill = { id: data.bill_id, link: billShareLink(data.share_token), shareToken: data.share_token, isGuest: false, tripId: t.id, tripToken: t.shareToken };
+    const { data: fullData, error: fetchErr } = await sb.rpc('get_bill_by_token', { p_token: data.share_token });
+    if (fetchErr) {
+      console.error('Bill was created but could not be re-fetched', fetchErr);
+    } else {
+      applySupabaseBillData(bill, fullData);
+    }
+    window.allBills[bill.id] = bill;
+    window.currentBillId = bill.id;
+    touchBill(bill.id);
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Create Bill'; }
+    go('billsplitdashboard');
+  }
+
   // ---- Open Add Expense pre-filled with an existing expense ----
   function editExpense(id) {
     window.editingExpenseId = id;
@@ -4077,6 +4306,7 @@
     if (!e) return;
     document.getElementById('expDescription').value = e.description;
     document.getElementById('expAmount').value = e.amount;
+    document.getElementById('expNote').value = e.note || '';
     document.getElementById('expCurrency').value = e.currency;
     document.getElementById('expPaidBy').value = e.paidBy;
     window.currentExpenseReceiptPath = e.receiptPath || null;
@@ -4863,6 +5093,27 @@
     recalcBillTotals();
   }
 
+  // Folds bill_items rows that share a split_group_id (an equal split
+  // across more than one person) back into a single display row, so
+  // "Split Equally" reads as one logical item instead of N. Rows
+  // without a split_group_id (single-person items, and every
+  // "Duplicate Amount" row) always render on their own — grouping only
+  // ever applies to a genuine equal split.
+  function groupBillItemsForDisplay(items) {
+    const seen = new Set();
+    const rows = [];
+    items.forEach(it => {
+      if (it.splitGroupId) {
+        if (seen.has(it.splitGroupId)) return;
+        seen.add(it.splitGroupId);
+        rows.push({ isGroup: true, members: items.filter(x => x.splitGroupId === it.splitGroupId) });
+      } else {
+        rows.push({ isGroup: false, members: [it] });
+      }
+    });
+    return rows;
+  }
+
   function renderBillItems() {
     const d = currentBill();
     const list = document.getElementById('billItemsList');
@@ -4871,49 +5122,76 @@
       list.innerHTML = '<p class="guest-trips-empty">No items yet — tap Add Item to log the first one.</p>';
       return;
     }
-    list.innerHTML = d.items.map(it => {
-      const discountPct = it.discountPct || 0;
-      // it.amount is already net of the discount — back out the
-      // original to show how much was actually taken off, in the
-      // bill's currency rather than as an abstract percent alone.
-      const discountValue = discountPct > 0 ? (it.amount / (1 - discountPct / 100)) - it.amount : 0;
+    const rows = groupBillItemsForDisplay(d.items);
+    list.innerHTML = rows.map(row => {
+      const first = row.members[0];
+      const anchorId = first.id;
+      const amount = row.members.reduce((s, m) => s + m.amount, 0);
+      const discountPct = first.discountPct || 0;
+      // amount is already net of the discount — back out the original
+      // to show how much was actually taken off, in the bill's
+      // currency rather than as an abstract percent alone.
+      const discountValue = discountPct > 0 ? (amount / (1 - discountPct / 100)) - amount : 0;
+      const subLabel = row.isGroup
+        ? `Shared by ${row.members.map(m => m.owedBy).join(', ')}`
+        : `Payable by ${first.owedBy}`;
+      const avatar = row.isGroup
+        ? `<div class="mate-avatar" style="flex-shrink:0;">${svgIcon('users', 14)}</div>`
+        : `<div class="mate-avatar" style="flex-shrink:0;">${first.owedBy[0]}</div>`;
       return `
       <div class="expense-item">
-        <div class="mate-avatar" style="flex-shrink:0;">${it.owedBy[0]}</div>
-        <div style="flex:1;">
-          <p class="expense-title">${it.description}</p>
-          <p class="expense-sub">Payable by ${it.owedBy}</p>
+        ${avatar}
+        <div style="flex:1; min-width:0;">
+          <p class="expense-title">${first.description}</p>
+          ${first.note ? `<p class="item-note-text">${escapeAttr(first.note)}</p>` : ''}
+          <p class="expense-sub">${subLabel}</p>
         </div>
         <div style="text-align:right;">
           ${discountPct > 0 ? `<p class="item-discount-note">&minus;${formatMoney(discountValue, d.currency)} (${discountPct}%)</p>` : ''}
-          <p class="expense-amount">${formatMoney(it.amount, d.currency)}</p>
+          <p class="expense-amount">${formatMoney(amount, d.currency)}</p>
         </div>
-        <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="editBillItem('${it.id}')" title="Edit item">${svgIcon('pen', 13)}</button>
-        <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="deleteBillItem('${it.id}')" title="Delete item">${svgIcon('trash', 13)}</button>
+        <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="editBillItem('${anchorId}')" title="Edit item">${svgIcon('pen', 13)}</button>
+        <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="deleteBillItem('${anchorId}')" title="Delete item">${svgIcon('trash', 13)}</button>
       </div>
     `;
     }).join('');
   }
 
+  // Every row sharing an item's split_group_id is one logical item —
+  // editing or deleting "an item" always means the whole group, not
+  // just whichever row's buttons happened to be tapped. Ungrouped rows
+  // (no split_group_id) are their own one-member group.
+  function billItemGroupFor(d, id) {
+    const anchor = d.items.find(it => String(it.id) === String(id));
+    if (!anchor) return [];
+    if (!anchor.splitGroupId) return [anchor];
+    return d.items.filter(it => it.splitGroupId === anchor.splitGroupId);
+  }
+
   async function deleteBillItem(id) {
     const d = currentBill();
+    const group = billItemGroupFor(d, id);
+    if (!group.length) return;
 
     if (d.shareToken) {
-      const { error } = await sb.rpc('delete_bill_item_by_token', { p_token: d.shareToken, p_item_id: id });
-      if (error) {
-        console.error('Could not delete bill item in Supabase', error);
-        alert('Could not delete this item — check your connection and try again.\n\n' + error.message);
-        return;
+      let delErr = null;
+      for (const it of group) {
+        const { error } = await sb.rpc('delete_bill_item_by_token', { p_token: d.shareToken, p_item_id: it.id });
+        if (error) delErr = error;
+      }
+      if (delErr) {
+        console.error('Could not delete bill item in Supabase', delErr);
+        alert('Could not delete this item — check your connection and try again.\n\n' + delErr.message);
       }
       await reloadBillFromSupabase(d.id);
+      await syncTripLinkedBillExpense(d);
       renderBillItems();
       recalcBillTotals();
       return;
     }
 
-    const idx = d.items.findIndex(it => String(it.id) === String(id));
-    if (idx === -1) return;
-    d.items.splice(idx, 1);
+    const groupIds = new Set(group.map(it => String(it.id)));
+    d.items = d.items.filter(it => !groupIds.has(String(it.id)));
     touchBill(d.id);
     renderBillItems();
     recalcBillTotals();
@@ -4938,26 +5216,31 @@
 
     const descInput = document.getElementById('billItemDescription');
     const amtInput = document.getElementById('billItemAmount');
+    const noteInput = document.getElementById('billItemNote');
 
     window.billItemMode = 'equal';
     document.querySelectorAll('#billItemModeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
 
-    const item = isEdit ? d.items.find(it => String(it.id) === String(window.editingBillItemId)) : null;
-    if (item) {
-      descInput.value = item.description;
-      // item.amount is already net of item.discountPct — reconstruct
-      // the pre-discount amount so the Amount field shows what was
-      // actually typed in originally, not the discounted result.
-      // (Safe division: a 100% discount is rejected before ever being
-      // saved, so discountPct here is always < 100.)
-      const discountPct = item.discountPct || 0;
-      const originalAmount = discountPct > 0 ? item.amount / (1 - discountPct / 100) : item.amount;
+    const group = isEdit ? billItemGroupFor(d, window.editingBillItemId) : [];
+    const first = group[0];
+    if (first) {
+      descInput.value = first.description;
+      noteInput.value = first.note || '';
+      // Every row's amount is already net of discountPct and of the
+      // equal split — reconstruct the single original pre-discount,
+      // pre-split total so the Amount field shows what was actually
+      // typed in originally. (Safe division: a 100% discount is
+      // rejected before ever being saved, so discountPct is always < 100.)
+      const discountPct = first.discountPct || 0;
+      const splitTotal = group.reduce((s, it) => s + it.amount, 0);
+      const originalAmount = discountPct > 0 ? splitTotal / (1 - discountPct / 100) : splitTotal;
       amtInput.value = Math.round(originalAmount * 100) / 100;
       document.getElementById('billItemDiscountPct').value = discountPct || '';
-      window.selectedBillItemOwedBy = new Set([item.owedBy]);
+      window.selectedBillItemOwedBy = new Set(group.map(it => it.owedBy));
     } else {
       descInput.value = '';
       amtInput.value = '';
+      noteInput.value = '';
       document.getElementById('billItemDiscountPct').value = '';
       window.selectedBillItemOwedBy = new Set([d.payer]);
     }
@@ -5033,6 +5316,7 @@
     const d = currentBill();
     const description = (document.getElementById('billItemDescription').value || '').trim();
     const rawAmount = parseFloat(document.getElementById('billItemAmount').value) || 0;
+    const note = (document.getElementById('billItemNote').value || '').trim() || null;
     const discountPct = billItemDiscountPct();
     // The discount is applied once, here, at save time — what gets
     // split and written to bill_items is already net of it (see the
@@ -5051,8 +5335,11 @@
     // pieces always add back up to the original amount exactly.
     // Duplicate mode gives everyone the full keyed-in amount instead —
     // e.g. everyone ordered the same $12 drink. Either way, each
-    // selected person becomes their own individual item in the bill
-    // overview once this saves.
+    // selected person becomes their own row in bill_items once this
+    // saves — but an "equal" split across more than one person shares a
+    // split_group_id so the bill overview folds them back into a single
+    // "Shared by X, Y, Z" row (duplicate-amount rows are never grouped,
+    // since each person really does have their own separate item).
     const count = selected.length;
     const perPersonAmount = window.billItemMode === 'equal' ? amount / count : amount;
     const entries = selected.map((m, i) => {
@@ -5060,6 +5347,16 @@
       if (window.billItemMode === 'equal' && i === count - 1) amt = amount - perPersonAmount * (count - 1);
       return { owedBy: m, amount: Math.round(amt * 100) / 100 };
     });
+
+    // originalGroup is every existing row this edit is replacing (empty
+    // when adding a new item). Reuse its split_group_id when the save is
+    // still an equal split across >1 people, otherwise generate a fresh
+    // one (new group) or none at all (single person / duplicate mode).
+    const originalGroup = isEdit ? billItemGroupFor(d, window.editingBillItemId) : [];
+    const isGrouped = window.billItemMode === 'equal' && count > 1;
+    const splitGroupId = isGrouped
+      ? (originalGroup[0] && originalGroup[0].splitGroupId ? originalGroup[0].splitGroupId : crypto.randomUUID())
+      : null;
 
     if (d.shareToken) {
       const saveBtn = document.getElementById('billItemSaveBtn');
@@ -5076,39 +5373,36 @@
         return;
       }
 
-      // Editing keeps the original row's id (and so its position in the
-      // list) by updating it in place via update_bill_item_by_token,
-      // rather than the old delete-then-recreate — that always got a
-      // fresh id/created_at, which is why edited items used to jump to
-      // a different spot in the list. Splitting one item into several
-      // people is the one case that still has to add new rows (there's
-      // no getting around needing more than one row for that) — the
-      // first selected person reuses the original row/position, and
-      // anyone after them becomes a genuinely new row appended at the end.
+      // Editing reuses as many of the original group's rows as possible
+      // in place (update_bill_item_by_token), so their ids — and so
+      // their position in the list — don't change. This zips the new
+      // entries against the old group positionally: overlapping slots
+      // are updates, new entries beyond the old group's size are added,
+      // and old rows beyond the new entries' size (the group shrank) are
+      // deleted.
       let saveErr = null;
-      if (isEdit) {
-        const [first, ...rest] = entries;
-        const { error: updErr } = await sb.rpc('update_bill_item_by_token', {
-          p_token: d.shareToken, p_item_id: window.editingBillItemId,
-          p_description: description, p_amount: first.amount, p_owed_by: d.memberIds[first.owedBy],
-          p_discount_pct: discountPct
+      const shared = Math.min(entries.length, originalGroup.length);
+      for (let i = 0; i < shared; i++) {
+        const entry = entries[i];
+        const { error } = await sb.rpc('update_bill_item_by_token', {
+          p_token: d.shareToken, p_item_id: originalGroup[i].id,
+          p_description: description, p_amount: entry.amount, p_owed_by: d.memberIds[entry.owedBy],
+          p_discount_pct: discountPct, p_note: note, p_split_group_id: splitGroupId
         });
-        if (updErr) saveErr = updErr;
-        for (const entry of rest) {
-          const { error } = await sb.rpc('add_bill_item_by_token', {
-            p_token: d.shareToken, p_description: description, p_amount: entry.amount,
-            p_owed_by: d.memberIds[entry.owedBy], p_discount_pct: discountPct
-          });
-          if (error) saveErr = error;
-        }
-      } else {
-        for (const entry of entries) {
-          const { error } = await sb.rpc('add_bill_item_by_token', {
-            p_token: d.shareToken, p_description: description, p_amount: entry.amount,
-            p_owed_by: d.memberIds[entry.owedBy], p_discount_pct: discountPct
-          });
-          if (error) saveErr = error;
-        }
+        if (error) saveErr = error;
+      }
+      for (let i = shared; i < entries.length; i++) {
+        const entry = entries[i];
+        const { error } = await sb.rpc('add_bill_item_by_token', {
+          p_token: d.shareToken, p_description: description, p_amount: entry.amount,
+          p_owed_by: d.memberIds[entry.owedBy], p_discount_pct: discountPct,
+          p_note: note, p_split_group_id: splitGroupId
+        });
+        if (error) saveErr = error;
+      }
+      for (let i = shared; i < originalGroup.length; i++) {
+        const { error } = await sb.rpc('delete_bill_item_by_token', { p_token: d.shareToken, p_item_id: originalGroup[i].id });
+        if (error) saveErr = error;
       }
 
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Save Changes' : 'Save Item'; }
@@ -5121,29 +5415,30 @@
 
       window.editingBillItemId = null;
       await reloadBillFromSupabase(d.id);
+      await syncTripLinkedBillExpense(d);
       go('billsplitdashboard');
       return;
     }
 
     // ── Local-only bill (authenticated demo seed) ───────────
-    // Same in-place-update reasoning as the Supabase path above: reuse
-    // the original item's id/index for the first entry so it doesn't
-    // jump position, only append genuinely new rows for the rest.
-    if (isEdit) {
-      const idx = d.items.findIndex(it => String(it.id) === String(window.editingBillItemId));
-      const [first, ...rest] = entries;
-      if (idx !== -1 && first) {
-        d.items[idx] = { id: d.items[idx].id, description, amount: first.amount, owedBy: first.owedBy, discountPct };
-      } else if (first) {
-        d.items.push({ id: Date.now(), description, amount: first.amount, owedBy: first.owedBy, discountPct });
+    // Same in-place-update/zip reasoning as the Supabase path above.
+    {
+      const shared = Math.min(entries.length, originalGroup.length);
+      for (let i = 0; i < shared; i++) {
+        const entry = entries[i];
+        const idx = d.items.findIndex(it => String(it.id) === String(originalGroup[i].id));
+        if (idx !== -1) {
+          d.items[idx] = { id: originalGroup[i].id, description, amount: entry.amount, owedBy: entry.owedBy, discountPct, note, splitGroupId };
+        }
       }
-      rest.forEach((entry, i) => {
-        d.items.push({ id: Date.now() + i + 1, description, amount: entry.amount, owedBy: entry.owedBy, discountPct });
-      });
-    } else {
-      entries.forEach((entry, i) => {
-        d.items.push({ id: Date.now() + i, description, amount: entry.amount, owedBy: entry.owedBy, discountPct });
-      });
+      for (let i = shared; i < entries.length; i++) {
+        const entry = entries[i];
+        d.items.push({ id: Date.now() + i, description, amount: entry.amount, owedBy: entry.owedBy, discountPct, note, splitGroupId });
+      }
+      if (shared < originalGroup.length) {
+        const removeIds = new Set(originalGroup.slice(shared).map(it => String(it.id)));
+        d.items = d.items.filter(it => !removeIds.has(String(it.id)));
+      }
     }
 
     window.editingBillItemId = null;
@@ -5251,6 +5546,7 @@
       description: it.description,
       amount: it.amount,
       discountPct: 0,
+      note: '',
       payable: new Set(d.mates)
     }));
     window.scannedReceiptMeta = data;
@@ -5297,6 +5593,7 @@
           <span style="font-size:12px; color:var(--text-tertiary);">%</span>
           ${discountPct > 0 ? `<span class="discount-result">&rarr; ${formatMoney(discountedAmount, d.currency)}</span>` : ''}
         </div>
+        <input class="scan-review-note" type="text" maxlength="200" value="${escapeAttr(it.note || '')}" placeholder="Add a note (optional)" oninput="updateScanItemField(${idx}, 'note', this.value)">
         <div class="scan-chip-row">
           ${d.mates.map(m => `<button type="button" class="scan-chip ${it.payable.has(m) ? 'selected' : ''}" onclick="toggleScanItemPayable(${idx}, ${JSON.stringify(m).replace(/"/g, '&quot;')})">${m}</button>`).join('')}
         </div>
@@ -5378,10 +5675,16 @@
     let saveErr = null;
     for (const it of usableItems) {
       const description = String(it.description).trim();
+      const note = (it.note || '').trim() || null;
       const discountPct = Math.min(Math.max(parseFloat(it.discountPct) || 0, 0), 100);
       const amount = Math.round(parseFloat(it.amount) * (1 - discountPct / 100) * 100) / 100;
       const selected = d.mates.filter(m => it.payable.has(m));
       const count = selected.length;
+      // Split across more than one person groups the resulting rows
+      // under one split_group_id, same as an equal split from the
+      // manual Add Item flow, so the bill overview folds them into a
+      // single "Shared by X, Y, Z" row.
+      const splitGroupId = count > 1 ? crypto.randomUUID() : null;
       const perPersonAmount = amount / count;
       const entries = selected.map((m, i) => {
         let amt = perPersonAmount;
@@ -5392,7 +5695,8 @@
         if (!d.memberIds[entry.owedBy]) { saveErr = { message: `Could not match ${entry.owedBy} to this bill.` }; continue; }
         const { error } = await sb.rpc('add_bill_item_by_token', {
           p_token: d.shareToken, p_description: description, p_amount: entry.amount,
-          p_owed_by: d.memberIds[entry.owedBy], p_discount_pct: discountPct
+          p_owed_by: d.memberIds[entry.owedBy], p_discount_pct: discountPct,
+          p_note: note, p_split_group_id: splitGroupId
         });
         if (error) saveErr = error;
       }
@@ -5410,6 +5714,7 @@
     window.scannedItems = null;
     window.scannedReceiptMeta = null;
     await reloadBillFromSupabase(d.id);
+    await syncTripLinkedBillExpense(d);
     go('billsplitdashboard');
   }
 
@@ -5536,6 +5841,61 @@
 
   function computeBillTotals() {
     return computeBillTotalsFor(currentBill());
+  }
+
+  // ---- Trip-linked bills: mirror this bill's total into the trip's
+  // own expenses table, reusing add_expense_by_token/update_expense_by_token
+  // unchanged with split_type='exact' — see the design note atop
+  // migration 0020 for why this is safe (Settle Up, balances, and CSV
+  // export never need to know an expense is bill-backed). No-ops for a
+  // standalone Split a Bill (d.tripId unset) or before the bill has a
+  // payer/any items yet (nothing meaningful to mirror). Called after
+  // every item add/edit/delete and every tax/tip/discount/payer change
+  // on a trip-linked bill. ----
+  async function syncTripLinkedBillExpense(d) {
+    if (!d.tripId || !d.tripToken) return;
+    const payerTripMemberId = d.memberTripMemberIds && d.memberTripMemberIds[d.payer];
+    if (!payerTripMemberId) return;
+
+    const totals = computeBillTotalsFor(d);
+    const total = Math.round(totals.total * 100) / 100;
+    if (total <= 0) return; // an empty bill has nothing to mirror yet
+
+    const owingMembers = d.mates.filter(m => Math.round((totals.perPerson[m] || 0) * 100) / 100 > 0 && d.memberTripMemberIds[m]);
+    if (!owingMembers.length) return;
+
+    const splits = owingMembers.map(m => ({
+      trip_member_id: d.memberTripMemberIds[m],
+      share_value: 0,
+      owed_amount: Math.round((totals.perPerson[m] || 0) * 100) / 100
+    }));
+    // Keep the split sum exactly equal to the total despite per-person
+    // rounding (update_expense_by_token's _recompute_expense_splits
+    // rejects an exact split more than a cent off) — same trailing-
+    // remainder trick used everywhere else in this app.
+    const splitSum = splits.reduce((s, x) => s + x.owed_amount, 0);
+    const diff = Math.round((total - splitSum) * 100) / 100;
+    if (diff !== 0) splits[splits.length - 1].owed_amount = Math.round((splits[splits.length - 1].owed_amount + diff) * 100) / 100;
+
+    const rpcArgs = {
+      p_token: d.tripToken, p_description: d.name, p_category: 'other',
+      p_amount: total, p_currency: d.currency, p_exchange_rate: 1,
+      p_paid_by: payerTripMemberId, p_split_type: 'exact', p_splits: splits
+    };
+
+    if (d.linkedExpenseId) {
+      const { error } = await sb.rpc('update_expense_by_token', { ...rpcArgs, p_expense_id: d.linkedExpenseId });
+      if (error) console.error('Could not sync bill total to its trip expense', error);
+      return;
+    }
+
+    const { data: expenseId, error } = await sb.rpc('add_expense_by_token', rpcArgs);
+    if (error) { console.error('Could not create the trip expense mirroring this bill', error); return; }
+    d.linkedExpenseId = expenseId;
+    const { error: linkErr } = await sb.rpc('link_trip_bill_expense', {
+      p_trip_token: d.tripToken, p_bill_id: d.id, p_expense_id: expenseId
+    });
+    if (linkErr) console.error('Could not link the new trip expense back to this bill', linkErr);
   }
 
   function recalcBillTotals() {

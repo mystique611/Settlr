@@ -2,6 +2,17 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-08-01 — Shared bill items, item/expense notes, and "Add a Bill" inside a Trip
+
+Showed a mockup of all three pieces (grouped item rows, the note field, and the new trip flow) before building, per the usual pattern. Backed up to `260801-v02` before this batch, including a full snapshot of the migrations folder given the scale of the schema changes.
+
+- New migration `0019_notes_and_shared_items.sql`: adds `bill_items.note`/`split_group_id` and `expenses.note`; updates `add_bill_item_by_token`/`update_bill_item_by_token`/`add_expense_by_token`/`update_expense_by_token` with the new trailing params. Validated with pglite (8 checks): notes round-trip, grouped items share one `split_group_id`, "Duplicate Amount" items stay ungrouped.
+- New migration `0020_trip_linked_bills.sql`: adds `bills.trip_id`/`linked_expense_id`, `expenses.linked_bill_id`, `bill_members.trip_member_id`; new `create_trip_bill_by_token()` (mirrors a trip's mates into a fresh bill's members) and `link_trip_bill_expense()`; `get_trip_by_token` now exposes the trip's own linked bills (with share tokens); `delete_bill_by_token` now cascades to the mirrored expense. Validated with pglite (12 checks).
+- **Bill Split: items split equally across more than one person now show as a single row** — "Shared by Alex, Jordan, Priya" instead of one line per person — while still writing one `bill_items` row per person underneath (so every existing total/settle calculation needed zero changes). "Duplicate Amount" items (everyone ordered the same thing) are deliberately never grouped, since those really are separate items. Editing or deleting a shared row now acts on the whole group — growing, shrinking, or ungrouping a shared item reconciles against the previous group's rows in place rather than delete-and-recreate, so unaffected rows keep their position.
+- **Optional note field** on Bill Split items (manual add and Scan Receipt review) and on trip expenses — shown as small italic text under the description/subtitle wherever that item appears (bill dashboard, trip expense list).
+- **"Add a Bill" inside a Trip**: a new button below Add Expense opens a lightweight itemized bill scoped to the trip — its members come straight from the trip's own mates (no separate people-picker) and its currency is restricted to the trip's home/travel currencies. Once it has any items, its total is mirrored live into a normal trip expense (`split_type: 'exact'`, reusing `add_expense_by_token`/`update_expense_by_token` unchanged) — so Settle Up, balances, and CSV export never need to know an expense is bill-backed. The trip's expense list shows it as one collapsed row ("Bill · Paid by X"); tapping it opens the bill's own itemized dashboard with the full per-item and per-person breakdown, and Back returns to the trip.
+- Verified the sync math with a standalone simulation (equal splits with odd cents, discount + exact tip, single-payer bills): rounding remainder always lands the split sum exactly on the mirrored expense total, matching what `_recompute_expense_splits`' 1-cent tolerance requires server-side.
+
 ## 2026-08-01 — Save as Image: label the payable amount as tax/GST-inclusive
 
 - The "Payable to X" line in the Save as Image export now reads "Payable to Alex (incl. tax & GST)" — a smaller, lighter suffix drawn right after the bold name so it doesn't overlap regardless of name length.
