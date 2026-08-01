@@ -1028,6 +1028,15 @@
   }
   .scan-review-amount:focus { outline: none; }
   .scan-review-remove { color: var(--text-tertiary); cursor: pointer; flex-shrink: 0; font-size: 14px; }
+  .scan-review-discount-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .scan-review-discount-input {
+    width: 44px; text-align: center; border: 1px solid var(--card-border);
+    background: var(--input-bg); border-radius: 8px; padding: 4px 6px;
+    font-size: 12.5px; font-weight: 600; color: var(--text-primary); font-family: inherit;
+  }
+  .scan-review-discount-input:focus { outline: none; border-color: var(--success); }
+  .scan-review-discount-input::-webkit-outer-spin-button, .scan-review-discount-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .discount-result { font-size: 12px; color: var(--success); font-weight: 600; margin-left: 2px; }
   .scan-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
   .scan-chip {
     font-size: 12px; padding: 5px 11px; border-radius: 100px; cursor: pointer;
@@ -1783,7 +1792,16 @@
           <input type="file" accept="image/*" id="scanReceiptFileInput" style="display:none;" onchange="handleScanReceiptFileSelected(event)">
 
           <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:18px;">
-            <p class="section-title">Tax, service & tip</p>
+            <p class="section-title">Discount, tax, service & tip</p>
+          </div>
+          <div class="field">
+            <label class="field-label">Discount off subtotal</label>
+            <div class="tab-switch" id="billDiscountModeTabs" style="margin-bottom:10px;">
+              <button class="tab-btn active" onclick="setBillDiscountMode('percent')">% off subtotal</button>
+              <button class="tab-btn" onclick="setBillDiscountMode('exact')">Exact amount</button>
+            </div>
+            <input class="field-input" type="number" id="billDiscountValue" value="0" oninput="onBillDiscountFieldChange()">
+            <p class="split-hint">Applies before service tax, GST and tip are calculated — even if item prices already include tax.</p>
           </div>
           <div class="field">
             <label class="field-label">Already included in item prices?</label>
@@ -1820,7 +1838,7 @@
           </div>
 
           <div class="balance-card" style="margin-top:8px;">
-            <p class="balance-label">Total (incl. tax, service & tip)</p>
+            <p class="balance-label">Total (incl. discount, tax, service & tip)</p>
             <p class="balance-amount" id="billTotalAmount">$0.00</p>
             <p class="balance-sub" id="billTotalSub">0 items</p>
           </div>
@@ -1851,6 +1869,12 @@
         <div class="field">
           <label class="field-label" id="billItemAmountLabel">Amount (USD)</label>
           <input class="field-input" id="billItemAmount" type="number" placeholder="0.00" oninput="renderBillItemOwedByEditor()">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Discount % <span style="color:var(--text-tertiary); font-weight:400;">(optional)</span></label>
+          <input class="field-input" id="billItemDiscountPct" type="number" placeholder="0" min="0" max="100" oninput="renderBillItemOwedByEditor()">
+          <p class="split-hint ok" id="billItemDiscountHint" style="display:none;"></p>
         </div>
 
         <div class="field">
@@ -1913,7 +1937,7 @@
         </div>
         <div class="header-block" style="margin: 10px 0 16px;">
           <h2 class="header-title" id="billSettleTitle">Settle Up</h2>
-          <p class="header-desc" id="billSettleDesc">Full breakdown, including tax, service & tip.</p>
+          <p class="header-desc" id="billSettleDesc">Full breakdown, including discount, tax, service & tip.</p>
         </div>
 
         <div id="billSettleItemsList"></div>
@@ -2449,6 +2473,9 @@
     b.tipMode = data.bill.tip_mode;
     b.tipPercent = parseFloat(data.bill.tip_percent);
     b.tipExact = parseFloat(data.bill.tip_exact);
+    b.discountMode = data.bill.discount_mode || 'percent';
+    b.discountPercent = parseFloat(data.bill.discount_percent) || 0;
+    b.discountExact = parseFloat(data.bill.discount_exact) || 0;
     b.memberIds = nameToId;
     b.updatedAt = Date.now();
   }
@@ -2519,7 +2546,10 @@
         p_gst_pct: d.gstPct,
         p_tip_mode: d.tipMode,
         p_tip_percent: d.tipPercent,
-        p_tip_exact: d.tipExact
+        p_tip_exact: d.tipExact,
+        p_discount_mode: d.discountMode,
+        p_discount_percent: d.discountPercent,
+        p_discount_exact: d.discountExact
       });
       if (error) console.error('Could not save bill settings to Supabase', error);
     }, 600);
@@ -4405,6 +4435,7 @@
         { id: 3, description: 'Bottle of Wine', amount: 55.00, owedBy: 'Alex' }
       ],
       taxIncluded: false, servicePct: 10, gstOnService: true, tipMode: 'percent', tipPercent: 0, tipExact: 0, gstPct: 9,
+      discountMode: 'percent', discountPercent: 0, discountExact: 0,
       link: 'settlr.app/b/' + shortToken('bill-demo-1'), isGuest: false, isDemo: true, updatedAt: Date.now() - 86400000
     }
   };
@@ -4629,6 +4660,7 @@
         // genuinely created server-side but the immediate re-fetch failed.
         bill.taxIncluded = false; bill.servicePct = 10; bill.gstOnService = true;
         bill.tipMode = 'percent'; bill.tipPercent = 0; bill.tipExact = 0; bill.gstPct = 9;
+        bill.discountMode = 'percent'; bill.discountPercent = 0; bill.discountExact = 0;
         bill.memberIds = {};
       } else {
         applySupabaseBillData(bill, fullData);
@@ -4699,6 +4731,7 @@
         // genuinely created server-side but the immediate re-fetch failed.
         bill.taxIncluded = false; bill.servicePct = 10; bill.gstOnService = true;
         bill.tipMode = 'percent'; bill.tipPercent = 0; bill.tipExact = 0; bill.gstPct = 9;
+        bill.discountMode = 'percent'; bill.discountPercent = 0; bill.discountExact = 0;
         bill.memberIds = {};
       } else {
         applySupabaseBillData(bill, fullData);
@@ -4805,6 +4838,9 @@
     payerSelect.innerHTML = d.mates.map(m => `<option value="${m}">${m}</option>`).join('');
     payerSelect.value = d.payer;
 
+    document.querySelectorAll('#billDiscountModeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0) === ((d.discountMode || 'percent') === 'percent')));
+    document.getElementById('billDiscountValue').value = (d.discountMode || 'percent') === 'percent' ? (d.discountPercent || 0) : (d.discountExact || 0);
+
     document.querySelectorAll('#billTaxIncludedTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0) === d.taxIncluded));
     document.getElementById('billTaxFields').style.display = d.taxIncluded ? 'none' : 'block';
     document.getElementById('billServicePct').value = d.servicePct;
@@ -4896,6 +4932,13 @@
     window.billItemMode = 'equal';
     document.querySelectorAll('#billItemModeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
 
+    // Discount always resets to 0% on open, even when editing — the
+    // amount shown for an existing item is already net of whatever
+    // discount was applied when it was first saved (no separate
+    // pre-discount value is stored), so re-discounting from here would
+    // double it up.
+    document.getElementById('billItemDiscountPct').value = '';
+
     const item = isEdit ? d.items.find(it => String(it.id) === String(window.editingBillItemId)) : null;
     if (item) {
       descInput.value = item.description;
@@ -4925,11 +4968,29 @@
     renderBillItemOwedByEditor();
   }
 
+  // Clamped 0-100 so a stray negative or >100 entry can't invert or
+  // zero-out the amount in a confusing way.
+  function billItemDiscountPct() {
+    const raw = parseFloat(document.getElementById('billItemDiscountPct').value) || 0;
+    return Math.min(Math.max(raw, 0), 100);
+  }
+
   function renderBillItemOwedByEditor() {
     const d = currentBill();
     const container = document.getElementById('billItemOwedByEditor');
     if (!container || !d) return;
-    const amount = parseFloat(document.getElementById('billItemAmount').value) || 0;
+    const rawAmount = parseFloat(document.getElementById('billItemAmount').value) || 0;
+    const discountPct = billItemDiscountPct();
+    const amount = rawAmount * (1 - discountPct / 100);
+
+    const hint = document.getElementById('billItemDiscountHint');
+    if (discountPct > 0 && rawAmount > 0) {
+      hint.style.display = 'block';
+      hint.textContent = `${formatMoney(rawAmount, d.currency)} − ${discountPct}% = ${formatMoney(amount, d.currency)} to split`;
+    } else {
+      hint.style.display = 'none';
+    }
+
     const selected = d.mates.filter(m => window.selectedBillItemOwedBy.has(m));
     const count = selected.length || 1;
     const perPersonAmount = window.billItemMode === 'equal' ? amount / count : amount;
@@ -4959,12 +5020,18 @@
   async function saveBillItem() {
     const d = currentBill();
     const description = (document.getElementById('billItemDescription').value || '').trim();
-    const amount = parseFloat(document.getElementById('billItemAmount').value) || 0;
+    const rawAmount = parseFloat(document.getElementById('billItemAmount').value) || 0;
+    const discountPct = billItemDiscountPct();
+    // The discount is applied once, here, at save time — what gets
+    // split and written to bill_items is already net of it (see the
+    // note in prepareBillItemForm about why editing doesn't re-apply it).
+    const amount = Math.round(rawAmount * (1 - discountPct / 100) * 100) / 100;
     const isEdit = window.editingBillItemId != null;
     const selected = d.mates.filter(m => window.selectedBillItemOwedBy.has(m));
 
     if (!description) { document.getElementById('billItemDescription').focus(); return; }
-    if (amount <= 0) { document.getElementById('billItemAmount').focus(); return; }
+    if (rawAmount <= 0) { document.getElementById('billItemAmount').focus(); return; }
+    if (amount <= 0) { alert('A 100% discount would leave nothing to bill — lower the discount or remove this item instead.'); document.getElementById('billItemDiscountPct').focus(); return; }
     if (!selected.length) { alert('Select at least one person this item is payable by.'); return; }
 
     // Equal mode divides the entered amount across everyone selected,
@@ -5146,6 +5213,7 @@
     window.scannedItems = (data.items || []).map(it => ({
       description: it.description,
       amount: it.amount,
+      discountPct: 0,
       payable: new Set(d.mates)
     }));
     window.scannedReceiptMeta = data;
@@ -5174,18 +5242,30 @@
       list.innerHTML = '<p class="guest-trips-empty">No items left to review — go back and rescan, or add items manually.</p>';
       return;
     }
-    list.innerHTML = items.map((it, idx) => `
+    list.innerHTML = items.map((it, idx) => {
+      const discountPct = Math.min(Math.max(parseFloat(it.discountPct) || 0, 0), 100);
+      const rawAmount = parseFloat(it.amount) || 0;
+      const discountedAmount = rawAmount * (1 - discountPct / 100);
+      return `
       <div class="scan-review-item">
         <div class="scan-review-item-fields">
           <input class="scan-review-desc" value="${escapeAttr(it.description)}" oninput="updateScanItemField(${idx}, 'description', this.value)" placeholder="Item description">
           <input class="scan-review-amount" type="number" step="0.01" value="${it.amount}" oninput="updateScanItemField(${idx}, 'amount', this.value)">
           <i class="fa-solid fa-trash scan-review-remove" onclick="removeScanReviewItem(${idx})" title="Remove"></i>
         </div>
+        <div class="scan-review-discount-row">
+          <i class="fa-solid fa-tag" style="font-size:12px; color:var(--text-tertiary);"></i>
+          <span style="font-size:12px; color:var(--text-tertiary);">Discount</span>
+          <input class="scan-review-discount-input" type="number" min="0" max="100" step="1" value="${it.discountPct || 0}" oninput="updateScanItemField(${idx}, 'discountPct', this.value)">
+          <span style="font-size:12px; color:var(--text-tertiary);">%</span>
+          ${discountPct > 0 ? `<span class="discount-result">&rarr; ${formatMoney(discountedAmount, d.currency)}</span>` : ''}
+        </div>
         <div class="scan-chip-row">
           ${d.mates.map(m => `<button type="button" class="scan-chip ${it.payable.has(m) ? 'selected' : ''}" onclick="toggleScanItemPayable(${idx}, ${JSON.stringify(m).replace(/"/g, '&quot;')})">${m}</button>`).join('')}
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   // Description/amount edits update state directly without a full
@@ -5233,6 +5313,18 @@
       alert('Add at least one item with a description, an amount, and someone it\'s payable by.');
       return;
     }
+    // A 100% discount would leave a $0 item, which the database won't
+    // accept (bill_items.amount must be > 0) — drop those rather than
+    // fail the whole batch, and let the person know.
+    const zeroedOut = items.filter(it => {
+      const pct = Math.min(Math.max(parseFloat(it.discountPct) || 0, 0), 100);
+      return Math.round(parseFloat(it.amount) * (1 - pct / 100) * 100) / 100 <= 0;
+    });
+    const usableItems = items.filter(it => !zeroedOut.includes(it));
+    if (zeroedOut.length && !usableItems.length) {
+      alert('A 100% discount on every item would leave nothing to bill — lower the discount on at least one item.');
+      return;
+    }
 
     const saveBtn = document.getElementById('scanReviewSaveBtn');
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Adding…'; }
@@ -5247,9 +5339,10 @@
     }
 
     let saveErr = null;
-    for (const it of items) {
+    for (const it of usableItems) {
       const description = String(it.description).trim();
-      const amount = Math.round(parseFloat(it.amount) * 100) / 100;
+      const discountPct = Math.min(Math.max(parseFloat(it.discountPct) || 0, 0), 100);
+      const amount = Math.round(parseFloat(it.amount) * (1 - discountPct / 100) * 100) / 100;
       const selected = d.mates.filter(m => it.payable.has(m));
       const count = selected.length;
       const perPersonAmount = amount / count;
@@ -5272,12 +5365,39 @@
     if (saveErr) {
       console.error('Could not save one or more scanned items', saveErr);
       alert('Some items may not have saved — check the bill and try again for anything missing.\n\n' + saveErr.message);
+    } else if (zeroedOut.length) {
+      alert(`Added everything except ${zeroedOut.length} item${zeroedOut.length === 1 ? '' : 's'} discounted to $0 — those were skipped.`);
     }
 
     window.scannedItems = null;
     window.scannedReceiptMeta = null;
     await reloadBillFromSupabase(d.id);
     go('billsplitdashboard');
+  }
+
+  // ---- Discount off the item subtotal — same percent/exact toggle
+  // pattern as Tip, but applies regardless of whether tax is already
+  // included in item prices (it's a separate concept from tax). ----
+  function setBillDiscountMode(mode) {
+    const d = currentBill();
+    const valInput = document.getElementById('billDiscountValue');
+    const val = parseFloat(valInput.value) || 0;
+    if ((d.discountMode || 'percent') === 'percent') d.discountPercent = val; else d.discountExact = val;
+    d.discountMode = mode;
+    document.querySelectorAll('#billDiscountModeTabs .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0) === (mode === 'percent')));
+    valInput.value = mode === 'percent' ? (d.discountPercent || 0) : (d.discountExact || 0);
+    touchBill(d.id);
+    scheduleBillSettingsSave(d);
+    recalcBillTotals();
+  }
+
+  function onBillDiscountFieldChange() {
+    const d = currentBill();
+    const val = parseFloat(document.getElementById('billDiscountValue').value) || 0;
+    if ((d.discountMode || 'percent') === 'percent') d.discountPercent = val; else d.discountExact = val;
+    touchBill(d.id);
+    scheduleBillSettingsSave(d);
+    recalcBillTotals();
   }
 
   function setBillTaxIncluded(included) {
@@ -5325,39 +5445,55 @@
     recalcBillTotals();
   }
 
-  // Tax/service/tip are handled at the bill level (not per item) and then
-  // allocated back to each item's payable person proportionally, so the
-  // per-person "amount payable to the payer" always includes their fair
-  // share of tax, service charge and tip — not just their raw item total.
+  // Discount, tax/service/tip are all handled at the bill level (not
+  // per item) and then allocated back to each item's payable person
+  // proportionally, so the per-person "amount payable to the payer"
+  // always includes their fair share — not just their raw item total.
+  //
+  // Discount comes off the subtotal first, before anything else is
+  // calculated — it applies whether or not tax is already included in
+  // item prices, since a discount (a coupon, a loyalty deal) is a
+  // separate concept from how the receipt's own prices were quoted.
+  // Service tax, GST and tip are then all based on the DISCOUNTED
+  // subtotal, not the raw one — same logic as "tax comes off the price
+  // after any discount" on a normal receipt.
   //
   // Tip is always excluded from both the service tax base and the GST
-  // base — it's computed from the item subtotal only, and is itself
-  // never taxed. GST's base is the subtotal, plus the service tax
-  // amount too if gstOnService is on (a per-bill choice, since some
-  // jurisdictions charge GST on top of the service charge and some don't).
+  // base — it's computed from the discounted subtotal only, and is
+  // itself never taxed. GST's base is the discounted subtotal, plus the
+  // service tax amount too if gstOnService is on (a per-bill choice,
+  // since some jurisdictions charge GST on top of the service charge
+  // and some don't).
   function computeBillTotalsFor(d) {
     const subtotal = d.items.reduce((sum, it) => sum + it.amount, 0);
+    const discountMode = d.discountMode || 'percent';
+    let discountAmt = discountMode === 'percent' ? subtotal * (d.discountPercent || 0) / 100 : (d.discountExact || 0);
+    discountAmt = Math.min(Math.max(discountAmt, 0), subtotal);
+    const netSubtotal = subtotal - discountAmt;
+
     let serviceAmt = 0, tipAmt = 0, gstAmt = 0;
     const gstOnService = d.gstOnService !== false;
     if (!d.taxIncluded) {
-      serviceAmt = subtotal * (d.servicePct || 0) / 100;
-      tipAmt = d.tipMode === 'percent' ? subtotal * (d.tipPercent || 0) / 100 : (d.tipExact || 0);
-      const gstBase = subtotal + (gstOnService ? serviceAmt : 0);
+      serviceAmt = netSubtotal * (d.servicePct || 0) / 100;
+      tipAmt = d.tipMode === 'percent' ? netSubtotal * (d.tipPercent || 0) / 100 : (d.tipExact || 0);
+      const gstBase = netSubtotal + (gstOnService ? serviceAmt : 0);
       gstAmt = gstBase * (d.gstPct || 0) / 100;
     }
-    const total = subtotal + serviceAmt + tipAmt + gstAmt;
+    const total = netSubtotal + serviceAmt + tipAmt + gstAmt;
 
     const perPerson = {};
     d.mates.forEach(m => { perPerson[m] = 0; });
     d.items.forEach(it => {
-      const itemService = d.taxIncluded ? 0 : it.amount * (d.servicePct || 0) / 100;
-      const itemGstBase = it.amount + (gstOnService ? itemService : 0);
+      const itemDiscount = subtotal > 0 ? (it.amount / subtotal) * discountAmt : 0;
+      const itemNet = it.amount - itemDiscount;
+      const itemService = d.taxIncluded ? 0 : itemNet * (d.servicePct || 0) / 100;
+      const itemGstBase = itemNet + (gstOnService ? itemService : 0);
       const itemGst = d.taxIncluded ? 0 : itemGstBase * (d.gstPct || 0) / 100;
       const itemTip = (!d.taxIncluded && subtotal > 0) ? (it.amount / subtotal) * tipAmt : 0;
-      perPerson[it.owedBy] = (perPerson[it.owedBy] || 0) + it.amount + itemService + itemGst + itemTip;
+      perPerson[it.owedBy] = (perPerson[it.owedBy] || 0) + itemNet + itemService + itemGst + itemTip;
     });
 
-    return { subtotal, serviceAmt, tipAmt, gstAmt, total, perPerson };
+    return { subtotal, discountAmt, netSubtotal, serviceAmt, tipAmt, gstAmt, total, perPerson };
   }
 
   function computeBillTotals() {
@@ -5378,7 +5514,7 @@
     const totals = computeBillTotals();
 
     document.getElementById('billSettleTitle').textContent = d.name;
-    document.getElementById('billSettleDesc').textContent = `Full breakdown, including tax, service & tip. Paid by ${d.payer}.`;
+    document.getElementById('billSettleDesc').textContent = `Full breakdown, including discount, tax, service & tip. Paid by ${d.payer}.`;
     document.getElementById('billSettlePayerName').textContent = d.payer;
 
     // Grouped by person rather than one flat list — each person's items
@@ -5410,19 +5546,24 @@
     }
 
     const breakdown = document.getElementById('billSettleBreakdown');
+    const discountLabel = (d.discountMode || 'percent') === 'percent' ? `Discount (${d.discountPercent || 0}%)` : 'Discount';
     const rows = [
       ['Subtotal', totals.subtotal],
+      ...(totals.discountAmt > 0 ? [
+        [discountLabel, -totals.discountAmt, 'var(--success)'],
+        ['Discounted subtotal', totals.netSubtotal]
+      ] : []),
       ...(d.taxIncluded ? [] : [
         [`Service tax (${d.servicePct}%)`, totals.serviceAmt],
         [d.tipMode === 'percent' ? `Tip (${d.tipPercent}%)` : 'Tip', totals.tipAmt],
         [`GST (${d.gstPct}%)`, totals.gstAmt]
       ])
     ];
-    breakdown.innerHTML = rows.map(([label, amt]) => `
+    breakdown.innerHTML = rows.map(([label, amt, color]) => `
       <div class="settle-card" style="padding:12px 14px;">
         <div class="settle-card-top" style="margin:0;">
           <p class="settle-who">${label}</p>
-          <p class="settle-amount">${formatMoney(amt, d.currency)}</p>
+          <p class="settle-amount"${color ? ` style="color:${color};"` : ''}>${amt < 0 ? '&minus;' : ''}${formatMoney(Math.abs(amt), d.currency)}</p>
         </div>
       </div>
     `).join('') + `
@@ -5463,12 +5604,26 @@
       .filter(m => d.items.some(it => it.owedBy === m))
       .map(m => ({ name: m, items: d.items.filter(it => it.owedBy === m) }));
 
+    const discountLabel = (d.discountMode || 'percent') === 'percent' ? `Discount (${d.discountPercent || 0}%)` : 'Discount';
+    const breakdownRowsData = [
+      ['Subtotal', totals.subtotal],
+      ...(totals.discountAmt > 0 ? [
+        [discountLabel, -totals.discountAmt, '#0f9d6e'],
+        ['Discounted subtotal', totals.netSubtotal]
+      ] : []),
+      ...(d.taxIncluded ? [] : [
+        [`Service tax (${d.servicePct}%)`, totals.serviceAmt],
+        ['Tip', totals.tipAmt],
+        [`GST (${d.gstPct}%)`, totals.gstAmt]
+      ])
+    ];
+
     const lineHeight = 26;
     const width = 480;
     const itemsHeight = groups.length
       ? groups.reduce((s, g) => s + lineHeight + g.items.length * lineHeight, 0)
       : lineHeight;
-    const breakdownRows = (d.taxIncluded ? 1 : 4) + 1;
+    const breakdownRows = breakdownRowsData.length + 1;
     const footerHeight = 46;
     const height = 130 + itemsHeight + 30 + breakdownRows * lineHeight + 50 + Math.max(others.length, 1) * lineHeight + 30 + footerHeight;
 
@@ -5524,19 +5679,11 @@
     ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
     y += 24;
 
-    const rows = [
-      ['Subtotal', totals.subtotal],
-      ...(d.taxIncluded ? [] : [
-        [`Service tax (${d.servicePct}%)`, totals.serviceAmt],
-        ['Tip', totals.tipAmt],
-        [`GST (${d.gstPct}%)`, totals.gstAmt]
-      ])
-    ];
-    rows.forEach(([label, amt]) => {
-      ctx.fillStyle = '#64748b';
+    breakdownRowsData.forEach(([label, amt, color]) => {
+      ctx.fillStyle = color || '#64748b';
       ctx.fillText(label, 24, y);
       ctx.textAlign = 'right';
-      ctx.fillText(formatMoney(amt, d.currency), width - 24, y);
+      ctx.fillText((amt < 0 ? '-' : '') + formatMoney(Math.abs(amt), d.currency), width - 24, y);
       ctx.textAlign = 'left';
       y += lineHeight;
     });

@@ -1,6 +1,6 @@
 # Settlr — Supabase backend (guest-mode + RLS)
 
-Sixteen migrations, run in order:
+Seventeen migrations, run in order:
 
 1. `0001_schema.sql` — core trip tables: `trips`, `trip_members`, `expenses`, `expense_splits`, `settlements`, `favorites`. Requires `extensions` to be on the search path (see note below) since `gen_random_bytes()` lives there on hosted Supabase projects.
 2. `0002_rls_policies.sql` — enables RLS, locks `anon` out of every table, and adds `auth.uid()`-based policies so authenticated users can only see trips they own or belong to.
@@ -18,6 +18,7 @@ Sixteen migrations, run in order:
 14. `0014_expense_receipts.sql` — `add_expense_by_token`/`update_expense_by_token` gain a `p_receipt_path` param (`update_expense_by_token` also gets `p_clear_receipt`) so they can record the Storage object path from an uploaded receipt against `expenses.receipt_path` (a column that's existed since `0001` but was never wired up until now). Both functions are explicitly dropped before being recreated, since adding a parameter changes the function's signature — `create or replace` alone would've left the old signature behind as a separate overload instead of actually replacing it.
 15. `0015_receipt_storage_bucket.sql` — creates the private `receipts` Storage bucket and RLS policies restricting every operation to `(storage.foldername(name))[1] = auth.uid()::text`, i.e. everyone can only touch objects under their own user-id folder. **Can't be exercised by this project's pglite test harness** — the `storage` schema is a Supabase-platform feature, not something a bare embedded Postgres has — so this one needs a live check after deploying: upload a receipt as one account, confirm a second account can't list or fetch it.
 16. `0016_receipt_scan_rate_limit.sql` — creates `receipt_scan_log` (client IP + timestamp) with RLS enabled and **no policies at all**, so `anon`/`authenticated` get zero access and only the service role can touch it. This backs the `scan-receipt` Edge Function's own IP-based rate limit (see below) — a separate mechanism from `_check_rate_limit`/`_rpc_attempt_log` (`0010`), since that one only guards RPCs called through PostgREST, not an Edge Function calling out to a third-party API. Also adds `_prune_receipt_scan_log()`, a standalone helper (not currently scheduled) that deletes log rows older than 7 days.
+17. `0017_bill_discount.sql` — adds `discount_mode`/`discount_percent`/`discount_exact` to `bills` (same percent-or-exact pattern as `tip_mode`/`tip_percent`/`tip_exact`), for a discount taken off the item subtotal before service tax/GST/tip are calculated. `update_bill_settings_by_token` gains the three new params — its signature changed, so the old one is dropped before being recreated, same reasoning as `0014`. Per-item discounts (as opposed to this bill-level one) don't touch the schema at all: the discounted amount is just what gets written to `bill_items.amount`, computed client-side before the item is ever saved.
 
 Note on `extensions.gen_random_bytes()`: on hosted Supabase projects, pgcrypto's functions are installed into the `extensions` schema rather than `public`. `0001` and `0005` each run `set search_path = public, extensions;` before creating anything that calls `gen_random_bytes()`, since every migration file runs in its own session and doesn't inherit an earlier file's `SET`.
 
@@ -88,7 +89,10 @@ Note on `extensions.gen_random_bytes()`: on hosted Supabase projects, pgcrypto's
     p_gst_pct: 9,
     p_tip_mode: 'percent',
     p_tip_percent: 0,
-    p_tip_exact: 0
+    p_tip_exact: 0,
+    p_discount_mode: 'percent',
+    p_discount_percent: 5,
+    p_discount_exact: 0
   });
 
   await supabase.rpc('update_bill_item_by_token', {

@@ -2,6 +2,15 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-08-01 — Bill Split discounts (per-item and bill-level)
+
+- Showed a mockup of both entry points (Add Item, scanned-receipt review, and the dashboard's tax section) before building, per the usual pattern.
+- New migration `0017_bill_discount.sql`: adds `discount_mode`/`discount_percent`/`discount_exact` to `bills` — same percent-or-exact pattern as the existing tip fields — and updates `update_bill_settings_by_token` with three new params (its signature changed, so the old function is dropped before being recreated, same as `0014`). Validated with the pglite harness: defaults, both discount modes, the RLS lockout, and the `discount_mode` CHECK constraint all pass.
+- **Per-item discount %** on the Add/Edit Item screen and the scanned-receipt review screen: a discount percent field with a live "$X − Y% = $Z to split" preview. Applied once, at save time — the discounted amount is what actually gets split and written, the same way an entered amount already gets divided into per-person pieces. No schema change needed for this one; editing an already-saved item later starts its discount back at 0%, since the discount's already baked into the amount shown. A 100% discount that would leave a $0 item is blocked (manual Add Item) or silently skipped with a note (scanned items, since a batch of several items shouldn't fail entirely over one).
+- **Bill-level discount** in the "Discount, tax, service & tip" section: a percent-of-subtotal or exact-amount field, applied before service tax/GST/tip are calculated — regardless of whether item prices already include tax, since a discount is a separate concept from that. `computeBillTotalsFor()` now returns `discountAmt`/`netSubtotal` alongside the existing totals, and allocates the discount back per item proportionally (same ratio already used for tip) so each person's payable amount reflects their fair share.
+- Settle Up's on-screen breakdown and the "Save as Image" PNG export both gained a green "Discount" line (only shown when a discount is actually applied) between Subtotal and the rest of the breakdown.
+- Backed up to `260801-v01` before this batch.
+
 ## 2026-07-31 — Scan Receipt: allow uploading an existing photo, not just camera capture
 
 - Dropped the `capture="environment"` attribute from the Scan Receipt file input. That attribute was forcing mobile browsers straight into the camera app, with no way to pick an existing photo from the library/files instead. Without it, tapping "Scan Receipt" now shows the phone's normal picker (camera **or** photo library **or** files, depending on OS/browser) — same input, same `handleScanReceiptFileSelected()` handler, no other logic changed.
