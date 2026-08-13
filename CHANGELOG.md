@@ -2,6 +2,17 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-08-13 — Trip dashboard/Stats follow-ups
+
+Frontend-only follow-up to the same-day batch below — no schema changes.
+
+- **Trip dashboard: mate avatars now sit on their own row**, directly below "Paid by X · Split label", instead of off to the side of the description text.
+- **Editing an expense now returns to All Expenses instead of the dashboard** after saving — matches where you'd have come from to open the edit in the first place. Creating a brand-new expense still returns to the dashboard, unchanged.
+- **Trip Stats gained a "By Date" breakdown** alongside the existing "By Category" one — same style (a bar + amount + % per row), grouped by `expense_date`, newest first.
+- **Stats' date filter can now target one exact calendar date**, not just the preset ranges — a new "Exact date…" option reveals a date picker.
+- **Stats' category filter is replaced with a trip-mate filter.** "All trip mates" plus one option per mate; a mate matches an expense if they paid it *or* were in its split, same "who's involved" definition the dashboard's own mate-avatar row already uses. The category breakdown itself is untouched — only the filter changed, not what's shown.
+- **Export as Image / Export as CSV moved out of the dashboard header** and into two side-by-side buttons below Settle Up/Stats, sized to match.
+
 ## 2026-08-13 — Trip dates & export, Stats filters, Settle Up tax breakdown; full removal of "Add a Bill"
 
 A large batch touching both the Trip and Bill Split flows. Backed up to `260813-v01` (root files plus a full migrations snapshot) before starting. Showed mockups for every UI change and confirmed several open questions (full data cleanup vs. UI-only removal, the expense date's default behavior, where the trip export button should live, and mate-avatar scope on transaction rows) before building.

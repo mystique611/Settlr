@@ -1390,12 +1390,6 @@
               </div>
             </div>
             <div class="dash-header-right">
-              <button class="icon-btn" onclick="exportTripScreenshot()" title="Save as Image">
-                <i class="fa-solid fa-camera" style="font-size:14px;"></i>
-              </button>
-              <button class="icon-btn" onclick="exportTripCSV()" title="Export as CSV">
-                <i class="fa-solid fa-file-csv" style="font-size:14px;"></i>
-              </button>
               <button class="icon-btn" id="editTripBtn" onclick="openEditTrip()" title="Edit">
                 <i class="fa-solid fa-pen" style="font-size:14px;"></i>
               </button>
@@ -1423,6 +1417,16 @@
           <div class="quick-actions-row">
             <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="go('settleup')">Settle Up</button>
             <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="go('stats')">Stats</button>
+          </div>
+          <div class="quick-actions-row" style="margin-top:8px;">
+            <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="exportTripScreenshot()">
+              <i class="fa-solid fa-camera" style="font-size:13px;"></i>
+              Save as Image
+            </button>
+            <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="exportTripCSV()">
+              <i class="fa-solid fa-file-csv" style="font-size:13px;"></i>
+              Export CSV
+            </button>
           </div>
         </div>
 
@@ -1572,16 +1576,18 @@
           <h2 class="header-title">Trip Stats</h2>
         </div>
 
-        <div style="display:flex; gap:8px; margin-bottom:16px;">
-          <select class="field-input" id="statsCategoryFilter" style="flex:1; padding:11px 10px; font-size:13px;" onchange="renderCategoryStats()"></select>
-          <select class="field-input" id="statsDateFilter" style="flex:1; padding:11px 10px; font-size:13px;" onchange="renderCategoryStats()">
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <select class="field-input" id="statsMateFilter" style="flex:1; padding:11px 10px; font-size:13px;" onchange="renderCategoryStats()"></select>
+          <select class="field-input" id="statsDateFilter" style="flex:1; padding:11px 10px; font-size:13px;" onchange="onStatsDateFilterChange()">
             <option value="all">All dates</option>
             <option value="today">Today</option>
             <option value="7">Last 7 days</option>
             <option value="30">Last 30 days</option>
             <option value="month">This month</option>
+            <option value="exact">Exact date…</option>
           </select>
         </div>
+        <input class="field-input" id="statsExactDate" type="date" style="padding:11px 10px; font-size:13px; margin-bottom:16px; display:none;" onchange="renderCategoryStats()">
 
         <div class="balance-card" style="margin-bottom:20px;">
           <p class="balance-label">Total Spent</p>
@@ -1593,6 +1599,11 @@
           <p class="section-title">By Category</p>
         </div>
         <div id="categoryStatsList"></div>
+
+        <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:8px;">
+          <p class="section-title">By Date</p>
+        </div>
+        <div id="dateStatsList"></div>
 
         <div class="spacer"></div>
       </section>
@@ -3686,9 +3697,9 @@
             <div style="flex:1; min-width:0;">
               <p class="expense-title">${e.description}</p>
               <p class="expense-sub">Paid by ${e.paidBy} · ${e.splitLabel}</p>
+              <div style="margin-top:4px;">${renderExpenseMates(e.splits)}</div>
               ${e.note ? `<p class="item-note-text">${escapeAttr(e.note)}</p>` : ''}
             </div>
-            ${renderExpenseMates(e.splits)}
             <div style="text-align:right;">
               <p class="expense-amount">${formatMoney(e.amount, e.currency)}</p>
               ${showHomeEquivalent ? `<p class="expense-amount-sub">${formatMoney(convertAmount(e.amount, e.currency, home), home)}</p>` : ''}
@@ -4141,7 +4152,7 @@
       renderExpenseList();
       renderAllExpensesList();
       renderBalance();
-      go('dashboard');
+      go(isEdit ? 'allexpenses' : 'dashboard');
       return;
     }
 
@@ -4180,7 +4191,7 @@
     renderExpenseList();
     renderAllExpensesList();
     renderBalance();
-    go('dashboard');
+    go(isEdit ? 'allexpenses' : 'dashboard');
   }
 
   // ---- Open Add Expense fresh (clears any in-progress edit) ----
@@ -4478,33 +4489,60 @@
   // Every amount is converted to the trip's home currency
   // before being totaled, so category totals combine expenses
   // entered in different currencies correctly.
-  // Applies the Stats screen's own category/date filters — reads
-  // straight off the two select elements so callers never have to pass
-  // the filter state around. Date filtering compares against
-  // expense_date (the date the expense actually happened), same field
-  // the dashboard's date-grouped view uses, not created_at.
+  // Shows/hides the exact-date picker depending on the preset selected,
+  // then re-renders — kept separate from the plain onchange="renderCategoryStats()"
+  // the other filters use since this one also needs to toggle a whole
+  // element's visibility, not just recompute totals.
+  function onStatsDateFilterChange() {
+    const dateSel = document.getElementById('statsDateFilter');
+    const exactInput = document.getElementById('statsExactDate');
+    if (exactInput) {
+      exactInput.style.display = dateSel && dateSel.value === 'exact' ? 'block' : 'none';
+      if (dateSel && dateSel.value === 'exact' && !exactInput.value) {
+        exactInput.value = new Date().toISOString().slice(0, 10);
+      }
+    }
+    renderCategoryStats();
+  }
+
+  // Applies the Stats screen's own trip-mate/date filters — reads
+  // straight off the select elements so callers never have to pass the
+  // filter state around. Date filtering compares against expense_date
+  // (the date the expense actually happened), same field the
+  // dashboard's date-grouped view uses, not created_at. The mate filter
+  // matches anyone involved in the expense — who paid it, or anyone in
+  // its split — not just the payer, since "involved" is what the
+  // dashboard's own mate-avatar row already shows per expense.
   function getFilteredStatsExpenses() {
     const t = currentTrip();
-    const categorySel = document.getElementById('statsCategoryFilter');
+    const mateSel = document.getElementById('statsMateFilter');
     const dateSel = document.getElementById('statsDateFilter');
-    const category = categorySel ? categorySel.value : 'all';
+    const mate = mateSel ? mateSel.value : 'all';
     const dateFilter = dateSel ? dateSel.value : 'all';
 
-    let fromDate = null;
-    if (dateFilter !== 'all') {
+    let fromKey = null, toKey = null;
+    if (dateFilter === 'exact') {
+      const exactInput = document.getElementById('statsExactDate');
+      if (exactInput && exactInput.value) fromKey = toKey = exactInput.value;
+    } else if (dateFilter !== 'all') {
       const today = new Date(); today.setHours(0, 0, 0, 0);
+      let fromDate = null;
       if (dateFilter === 'today') fromDate = today;
       else if (dateFilter === '7' || dateFilter === '30') {
         fromDate = new Date(today); fromDate.setDate(fromDate.getDate() - (parseInt(dateFilter, 10) - 1));
       } else if (dateFilter === 'month') {
         fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
       }
+      fromKey = fromDate ? fromDate.toISOString().slice(0, 10) : null;
     }
-    const fromKey = fromDate ? fromDate.toISOString().slice(0, 10) : null;
 
     return t.expenses.filter(e => {
-      if (category !== 'all' && (e.category || 'other') !== category) return false;
+      if (mate !== 'all') {
+        const involved = e.paidBy === mate || (e.splits || []).some(s => s.member === mate);
+        if (!involved) return false;
+      }
       if (fromKey && (e.expenseDate || '') < fromKey) return false;
+      if (toKey && (e.expenseDate || '') > toKey) return false;
       return true;
     });
   }
@@ -4526,27 +4564,42 @@
     })).sort((a, b) => b.amount - a.amount);
   }
 
-  // Rebuilds the category filter's own option list from whatever
-  // categories actually appear in the trip (not a fixed list), keeping
-  // whatever was already selected — so switching trips or adding an
-  // expense in a new category doesn't reset the filter underneath you
-  // unless the previously-selected category no longer exists.
-  function populateStatsCategoryFilter() {
-    const sel = document.getElementById('statsCategoryFilter');
+  // Rebuilds the mate filter's own option list from the trip's current
+  // mates, keeping whatever was already selected — same "don't reset
+  // the filter underneath you" pattern the old category filter used.
+  function populateStatsMateFilter() {
+    const sel = document.getElementById('statsMateFilter');
     if (!sel) return;
     const t = currentTrip();
-    const present = Array.from(new Set(t.expenses.map(e => e.category || 'other')));
     const previous = sel.value || 'all';
-    sel.innerHTML = ['<option value="all">All categories</option>']
-      .concat(present.map(id => `<option value="${id}">${(CATEGORY_META[id] || CATEGORY_META.other).label}</option>`))
+    sel.innerHTML = ['<option value="all">All trip mates</option>']
+      .concat(t.mates.map(m => `<option value="${escapeAttr(m)}">${escapeAttr(m)}</option>`))
       .join('');
-    sel.value = present.includes(previous) || previous === 'all' ? previous : 'all';
+    sel.value = t.mates.includes(previous) || previous === 'all' ? previous : 'all';
+  }
+
+  // Same shape as getCategoryTotals, grouped by expense_date instead —
+  // newest date first, matching the dashboard's own date-grouped view.
+  function getDateTotals(expenses) {
+    const t = currentTrip();
+    const home = t.currencies.home;
+    const totals = {};
+    expenses.forEach(e => {
+      const key = e.expenseDate || 'unknown';
+      totals[key] = (totals[key] || 0) + convertAmount(e.amount, e.currency, home);
+    });
+    return Object.keys(totals).sort((a, b) => b.localeCompare(a)).map(key => ({
+      key,
+      label: key === 'unknown' ? 'Unknown date' : formatExpenseDateHeading(key),
+      amount: totals[key]
+    }));
   }
 
   function renderCategoryStats() {
-    populateStatsCategoryFilter();
+    populateStatsMateFilter();
     const filtered = getFilteredStatsExpenses();
     const categoryTotals = getCategoryTotals(filtered);
+    const dateTotals = getDateTotals(filtered);
     const total = categoryTotals.reduce((sum, c) => sum + c.amount, 0);
     const t = currentTrip();
     const home = t.currencies.home;
@@ -4555,23 +4608,41 @@
     document.getElementById('statsTotalSub').textContent =
       `Across ${filtered.length} expense${filtered.length === 1 ? '' : 's'} · ${t.mates.length} members`;
 
-    const list = document.getElementById('categoryStatsList');
+    const categoryList = document.getElementById('categoryStatsList');
     if (!categoryTotals.length) {
-      list.innerHTML = '<p class="guest-trips-empty">No expenses match these filters.</p>';
-      return;
-    }
-    list.innerHTML = categoryTotals.map(c => {
-      const pct = total ? (c.amount / total * 100) : 0;
-      return `
-        <div class="stat-row">
-          <div class="stat-row-top">
-            <span class="stat-row-label"><span style="color:${c.color}; display:flex;">${svgIcon(c.icon, 15)}</span>${c.label}</span>
-            <span class="stat-row-amount">${formatMoney(c.amount, home)} · ${pct.toFixed(0)}%</span>
+      categoryList.innerHTML = '<p class="guest-trips-empty">No expenses match these filters.</p>';
+    } else {
+      categoryList.innerHTML = categoryTotals.map(c => {
+        const pct = total ? (c.amount / total * 100) : 0;
+        return `
+          <div class="stat-row">
+            <div class="stat-row-top">
+              <span class="stat-row-label"><span style="color:${c.color}; display:flex;">${svgIcon(c.icon, 15)}</span>${c.label}</span>
+              <span class="stat-row-amount">${formatMoney(c.amount, home)} · ${pct.toFixed(0)}%</span>
+            </div>
+            <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${pct}%; background:${c.color};"></div></div>
           </div>
-          <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${pct}%; background:${c.color};"></div></div>
-        </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
+    }
+
+    const dateList = document.getElementById('dateStatsList');
+    if (!dateTotals.length) {
+      dateList.innerHTML = '<p class="guest-trips-empty">No expenses match these filters.</p>';
+    } else {
+      dateList.innerHTML = dateTotals.map(d => {
+        const pct = total ? (d.amount / total * 100) : 0;
+        return `
+          <div class="stat-row">
+            <div class="stat-row-top">
+              <span class="stat-row-label">${escapeAttr(d.label)}</span>
+              <span class="stat-row-amount">${formatMoney(d.amount, home)} · ${pct.toFixed(0)}%</span>
+            </div>
+            <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${pct}%; background:var(--accent);"></div></div>
+          </div>
+        `;
+      }).join('');
+    }
   }
 
   // Wraps a CSV field in quotes (doubling any embedded quotes) whenever
