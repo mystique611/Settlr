@@ -17,7 +17,7 @@ Settlr/
 └── backend/
     └── supabase/
         ├── README.md                      ← backend architecture + API reference
-        ├── migrations/                    ← 18 SQL migrations, run in order
+        ├── migrations/                    ← 23 SQL migrations, run in order
         └── functions/
             └── scan-receipt/              ← Edge Function: proxies receipt photos to Gemini for OCR
 ```
@@ -39,15 +39,18 @@ It's wired to a live Supabase project (URL and anon key are inlined near the top
 **Guest mode** (no account, get a shareable link):
 - Create or join a trip via link; add/rename/remove trip mates (at least one is required); rename the trip and change its currencies via a tag-style search field (type to add, tap a chip's ✕ to remove)
 - Trip and bill links are real, clickable URLs (`<your-site>/?t=<token>` / `?b=<token>`) — opening one loads that trip/bill straight to its dashboard, no pasting the token into "Join a Trip" required. A trip joined this way (or opened via link) stays in guest state — with the usual "Save to My Account" button — unless it's already yours
-- Add, edit, and delete expenses with equal/percentage/exact splits across multiple currencies — the split amounts are recomputed/validated server-side, not just trusted from the browser
+- Add, edit, and delete expenses with equal/percentage/exact splits across multiple currencies — the split amounts are recomputed/validated server-side, not just trusted from the browser. Each expense has its own user-editable date (defaults to today, backdatable) separate from when the row was actually written
+- The trip dashboard groups expenses under date headings (Today / Yesterday / weekday+date, newest first) and shows an overlapping avatar stack for everyone involved in each expense's split
+- Trip Stats can filter the category breakdown by category and by date range (today / last 7 / last 30 days / this month)
+- Export a trip's transaction list as a PNG or CSV, straight from the trip dashboard — both include a separate Settle Up section (who owes whom), not just the raw expense list
 - Settle up: mark a debt paid in full or partially, undo a settlement
 - Delete a trip entirely (with confirmation)
 - Split a Bill: a lighter one-receipt flow with per-item ownership, an optional discount (either a per-item % or a bill-level % / flat amount off the subtotal, applied before tax), tax/service/GST/tip handled at the bill level (Service Tax defaults to 10%, GST to 9%), and the same create/edit/delete/settle/delete-bill parity as trips — including an Edit Bill screen (reuses Create Bill Split) for renaming, changing currency, and adding/renaming/removing people after creation
-- Add Item supports multi-selecting who an item is payable by, with a Split Equally / Duplicate Amount toggle — Split Equally divides the entered amount across everyone selected and shows as a single "Shared by X, Y, Z" row in the bill overview (editing or deleting it acts on the whole group); Duplicate Amount gives everyone the full amount instead, as separate items (e.g. everyone had the same $12 drink). Every item also has an optional note, shown as small text under its description.
+- Add Item supports multi-selecting who an item is payable by, with a Split Equally / Duplicate Amount toggle — Split Equally divides the entered amount across everyone selected and shows as a single "Shared by [avatars]" row in the bill overview, using each person's avatar rather than typing out names (editing or deleting it acts on the whole group); Duplicate Amount gives everyone the full amount instead, as separate items (e.g. everyone had the same $12 drink). Every item also has an optional note, shown as small text under its description.
 - **Scan Receipt**: photograph or upload a receipt and Settlr reads it with AI (Gemini) instead of you typing every line by hand. A Review Scanned Items screen shows each detected item with an editable description/amount, an optional note, and the same payable-by chips as manual entry (defaulting to everyone, since the AI can't know who actually shared what) — nothing is added to the bill until you confirm. Works in guest mode too, no sign-in required. Needs a one-time setup step on your own Supabase project — see [Enabling receipt scanning](#enabling-receipt-scanning-optional) below; without it, the button fails gracefully with a clear message instead of breaking anything else.
-- **Add a Bill** (inside a trip): a button below Add Expense opens a lightweight itemized bill scoped to the trip — its people come straight from your trip mates and its currency is restricted to the trip's own currencies, no separate setup. It works exactly like Split a Bill otherwise (discounts, notes, shared items, Scan Receipt, Settle Up, Save as Image); its total stays synced into a normal trip expense automatically, so it counts toward the trip's balances and Settle Up like anything else. The trip's expense list shows it as one row — tap it to see the full itemized bill and each person's owed amount.
 - Trip expenses also support an optional note, shown as small text under the "Paid by X · split label" line.
-- Settle Up's breakdown (on-screen and in the exported image) groups items by person; the exported PNG offers your phone's native share sheet (Save to Photos, etc.) instead of a plain file download when the browser supports it, and is credited "Generated by Settlr" at the bottom
+- Settle Up's "Payable to X" summary sits at the top of the page (and the exported image), so the one number people actually need doesn't require scrolling past every line item. Each person's itemized subtotal shows both their incl-tax total (a bold rounded badge — their fair share of discount, service, GST, and tip) and, right below it in smaller bracketed text, their pre-tax total ("excl. tax and GST") whenever the two differ — on both the on-screen breakdown and the exported PNG
+- The exported Settle Up PNG offers your phone's native share sheet (Save to Photos, etc.) instead of a plain file download when the browser supports it, and is credited "Generated by Settlr" at the bottom
 - A guest trip/bill shows a "Save to My Account" button once you're signed in, which claims it onto your account without losing history — the old guest link is rotated to a fresh one on claim, so it stops working once the record belongs to an account
 
 **Account mode** (real Supabase Auth):
@@ -73,7 +76,7 @@ Quick version:
 
 1. Install the Supabase CLI (`scoop install supabase` on Windows, `brew install supabase/tap/supabase` on macOS, or as an npm dev dependency elsewhere).
 2. `supabase login`, then `supabase link --project-ref <your-project-ref>` from the `backend` folder.
-3. `supabase db push` to apply all 15 migrations in order. Migration `0015` creates the `receipts` Storage bucket + RLS policies — this is the one migration the project's local pglite test harness can't exercise (Storage is a Supabase-platform feature), so give it a quick live check after pushing: upload a receipt as one account, confirm a second account can't fetch it.
+3. `supabase db push` to apply all 23 migrations in order. Migration `0015` creates the `receipts` Storage bucket + RLS policies — this is the one migration the project's local pglite test harness can't exercise (Storage is a Supabase-platform feature), so give it a quick live check after pushing: upload a receipt as one account, confirm a second account can't fetch it.
 4. Swap the `SUPABASE_URL` / `SUPABASE_ANON_KEY` constants near the top of the prototype's `<script>` block for your own project's values (Project Settings → API in the Supabase dashboard). The anon key is safe to embed client-side by design — it has no table access on its own; the RLS policies and guest RPC functions are the actual gate.
 
 ### Enabling receipt scanning (optional)

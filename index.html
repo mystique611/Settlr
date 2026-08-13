@@ -833,6 +833,19 @@
   .expense-amount { font-size: 14.5px; font-weight: 700; text-align: right; white-space: nowrap; }
   .item-discount-note { font-size: 11px; font-weight: 600; color: var(--success); text-align: right; white-space: nowrap; margin: 0 0 1px; }
   .expense-amount-sub { font-size: 11px; color: var(--text-tertiary); text-align: right; }
+  .settle-amount-badge {
+    display: inline-block;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 13px; font-weight: 800;
+    padding: 4px 12px; border-radius: 999px;
+    white-space: nowrap;
+  }
+  .expense-date-heading { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin: 16px 0 4px; }
+  .expense-date-heading:first-child { margin-top: 0; }
+  .expense-mates { display: flex; flex-shrink: 0; margin-right: 2px; }
+  .expense-mates .mate-avatar { width: 20px; height: 20px; font-size: 9px; border: 1.5px solid var(--card); margin-left: -6px; }
+  .expense-mates .mate-avatar:first-child { margin-left: 0; }
+  .expense-mates .mate-avatar.overflow { background: var(--input-bg); color: var(--text-tertiary); }
 
   .dash-scroll {
     flex: 1;
@@ -1377,6 +1390,12 @@
               </div>
             </div>
             <div class="dash-header-right">
+              <button class="icon-btn" onclick="exportTripScreenshot()" title="Save as Image">
+                <i class="fa-solid fa-camera" style="font-size:14px;"></i>
+              </button>
+              <button class="icon-btn" onclick="exportTripCSV()" title="Export as CSV">
+                <i class="fa-solid fa-file-csv" style="font-size:14px;"></i>
+              </button>
               <button class="icon-btn" id="editTripBtn" onclick="openEditTrip()" title="Edit">
                 <i class="fa-solid fa-pen" style="font-size:14px;"></i>
               </button>
@@ -1410,10 +1429,6 @@
         <button class="fab-add" id="addExpenseFab" onclick="openAddExpense()">
           <i class="fa-solid fa-plus" style="font-size:16px;"></i>
           Add Expense
-        </button>
-        <button class="fab-add" id="addTripBillFab" style="margin-top:10px; background:var(--card); color:var(--text-primary); box-shadow:none; border:1px solid var(--card-border);" onclick="openAddTripBill()">
-          <i class="fa-solid fa-receipt" style="font-size:15px;"></i>
-          Add a Bill
         </button>
       </section>
 
@@ -1461,6 +1476,11 @@
               <option>SGD</option>
             </select>
           </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Date</label>
+          <input class="field-input" id="expDate" type="date" style="padding:13px 14px;">
         </div>
 
         <div class="field">
@@ -1514,41 +1534,6 @@
         </div>
       </section>
 
-      <!-- SCREEN 8b2: Add a Bill (trip-linked Bill Split) -->
-      <section class="screen" data-screen="tripbillcreate">
-        <div class="nav-row">
-          <button class="back-btn" onclick="go('dashboard')">
-            <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
-            Back
-          </button>
-        </div>
-        <div class="header-block" style="margin: 10px 0 16px;">
-          <p class="header-eyebrow">Add a Bill</p>
-          <h2 class="header-title">New itemized bill</h2>
-          <p class="header-desc">Splits like a regular Bill Split, but stays linked to this trip — everyone splitting it comes straight from your trip mates.</p>
-        </div>
-
-        <div class="field">
-          <label class="field-label">Bill name</label>
-          <input class="field-input" id="tripBillNameInput" type="text" placeholder="e.g. Dinner at Sardine">
-        </div>
-
-        <div class="field">
-          <label class="field-label">Currency</label>
-          <select class="field-input" id="tripBillCurrencySelect" style="padding:13px 14px;"></select>
-        </div>
-
-        <div class="field">
-          <label class="field-label">Paid by</label>
-          <select class="field-input" id="tripBillPaidBySelect" style="padding:13px 14px;"></select>
-        </div>
-
-        <div class="spacer"></div>
-        <div class="bottom-actions">
-          <button class="btn btn-primary" id="tripBillCreateBtn" onclick="createTripBill()">Create Bill</button>
-        </div>
-      </section>
-
       <!-- SCREEN 8c: Settle Up -->
       <section class="screen" data-screen="settleup">
         <div class="nav-row">
@@ -1587,6 +1572,17 @@
           <h2 class="header-title">Trip Stats</h2>
         </div>
 
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+          <select class="field-input" id="statsCategoryFilter" style="flex:1; padding:11px 10px; font-size:13px;" onchange="renderCategoryStats()"></select>
+          <select class="field-input" id="statsDateFilter" style="flex:1; padding:11px 10px; font-size:13px;" onchange="renderCategoryStats()">
+            <option value="all">All dates</option>
+            <option value="today">Today</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="month">This month</option>
+          </select>
+        </div>
+
         <div class="balance-card" style="margin-bottom:20px;">
           <p class="balance-label">Total Spent</p>
           <p class="balance-amount" id="statsTotalSpent" style="color:var(--text-primary);">$0.00</p>
@@ -1599,12 +1595,6 @@
         <div id="categoryStatsList"></div>
 
         <div class="spacer"></div>
-        <div class="bottom-actions">
-          <button class="btn btn-secondary" onclick="exportCSV()">
-            <i class="fa-solid fa-download" style="font-size:15px;"></i>
-            Export as CSV
-          </button>
-        </div>
       </section>
 
       <!-- SCREEN 8f: Trip Link info -->
@@ -1798,7 +1788,7 @@
       <!-- SCREEN 12: Bill Split — dashboard -->
       <section class="screen" data-screen="billsplitdashboard">
         <div class="nav-row">
-          <button class="back-btn" onclick="backFromBillDashboard()">
+          <button class="back-btn" onclick="go(window.isAuthenticated ? 'accounthome' : 'guest')">
             <i class="fa-solid fa-chevron-left" style="font-size:18px;"></i>
             Back
           </button>
@@ -1998,17 +1988,20 @@
           <p class="header-desc" id="billSettleDesc">Full breakdown, including discount, tax, service & tip.</p>
         </div>
 
+        <div class="section-title-row">
+          <p class="section-title">Payable to <span id="billSettlePayerName">Alex</span></p>
+        </div>
+        <div id="billSettlePerPerson"></div>
+
+        <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:8px;">
+          <p class="section-title">Items</p>
+        </div>
         <div id="billSettleItemsList"></div>
 
         <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:8px;">
           <p class="section-title">Bill breakdown</p>
         </div>
         <div id="billSettleBreakdown"></div>
-
-        <div class="section-title-row" style="border-top:1px solid var(--divider); padding-top:16px; margin-top:8px;">
-          <p class="section-title">Payable to <span id="billSettlePayerName">Alex</span></p>
-        </div>
-        <div id="billSettlePerPerson"></div>
 
         <div class="spacer"></div>
         <div class="bottom-actions">
@@ -2170,14 +2163,6 @@
       document.getElementById('addExpenseTitle').textContent = isEdit ? 'Edit Expense' : 'Add Expense';
       document.getElementById('saveExpenseBtn').textContent = isEdit ? 'Save Changes' : 'Save Expense';
       if (isEdit) applyExpenseToForm(window.editingExpenseId);
-    }
-    if (name === 'tripbillcreate') {
-      const t = currentTrip();
-      document.getElementById('tripBillNameInput').value = '';
-      const { home, travel } = t.currencies;
-      const codes = [home, ...travel.filter(c => c !== home)];
-      document.getElementById('tripBillCurrencySelect').innerHTML = codes.map(c => `<option value="${c}">${c}</option>`).join('');
-      document.getElementById('tripBillPaidBySelect').innerHTML = t.mates.map(m => `<option value="${m}">${m}</option>`).join('');
     }
     if (name === 'settleup') {
       const t = currentTrip();
@@ -2481,7 +2466,7 @@
       sub: '',
       note: e.note || '',
       receiptPath: e.receipt_path || null,
-      linkedBillId: e.linked_bill_id || null,
+      expenseDate: e.expense_date || null,
       splits: (data.expense_splits || [])
         .filter(s => s.expense_id === e.id)
         .map(s => ({ member: idToName[s.trip_member_id] || '?', share: parseFloat(s.owed_amount) }))
@@ -2500,15 +2485,6 @@
     t.expenses = expenses;
     t.settledHistory = settledHistory;
     t.memberIds = nameToId;
-    // Trip-linked bills (created via "Add a Bill") — each one's own
-    // share_token, so tapping its mirrored expense can open the
-    // itemized Bill Split view directly without a separate lookup.
-    t.bills = (data.bills || []).map(b => ({
-      id: b.id,
-      name: b.name,
-      shareToken: b.share_token,
-      linkedExpenseId: b.linked_expense_id || null
-    }));
     t.updatedAt = Date.now();
   }
 
@@ -2532,12 +2508,7 @@
   function applySupabaseBillData(b, data) {
     const idToName = {};
     const nameToId = {};
-    const nameToTripMemberId = {};
-    data.members.forEach(m => {
-      idToName[m.id] = m.display_name;
-      nameToId[m.display_name] = m.id;
-      if (m.trip_member_id) nameToTripMemberId[m.display_name] = m.trip_member_id;
-    });
+    data.members.forEach(m => { idToName[m.id] = m.display_name; nameToId[m.display_name] = m.id; });
 
     const items = (data.items || []).map(it => ({
       id: it.id,
@@ -2565,21 +2536,6 @@
     b.discountPercent = parseFloat(data.bill.discount_percent) || 0;
     b.discountExact = parseFloat(data.bill.discount_exact) || 0;
     b.memberIds = nameToId;
-    // Trip-linked bill bookkeeping (null/undefined for a standalone Split
-    // a Bill). get_bill_by_token (0021) returns the parent trip's own
-    // share_token directly as `trip_share_token` — trusted fresh on
-    // every fetch, regardless of how this bill was opened (tapped from
-    // inside the trip, from a bookmarked bill link, from "Your Bills"
-    // before that list started hiding trip-linked bills, etc.). Fixed a
-    // real bug: this used to be resolved from whichever trip happened to
-    // already be loaded in memory that session, which silently failed
-    // (no error, just a bill whose total never synced to the trip's
-    // Settle Up) whenever a trip-linked bill was opened any way other
-    // than tapping its row in the trip's own expense list.
-    b.tripId = data.bill.trip_id || null;
-    b.tripToken = data.trip_share_token || b.tripToken || null;
-    b.linkedExpenseId = data.bill.linked_expense_id || null;
-    b.memberTripMemberIds = nameToTripMemberId;
     b.updatedAt = Date.now();
   }
 
@@ -2631,21 +2587,6 @@
   // its collapsed row in the trip's expense list) belongs to a trip and
   // should return there — every other bill (a standalone Split a Bill)
   // returns to the account home / guest list as before.
-  async function backFromBillDashboard() {
-    const d = currentBill();
-    if (d && d.tripId && window.allTrips[d.tripId]) {
-      window.currentTripId = d.tripId;
-      // Refresh the trip so its expense list picks up whatever this bill
-      // just changed — a newly-created bill's first item, an edited
-      // total, etc. — rather than showing what was cached before this
-      // bill was opened.
-      if (window.allTrips[d.tripId].shareToken) await reloadTripFromSupabase(d.tripId);
-      go('dashboard');
-      return;
-    }
-    go(window.isAuthenticated ? 'accounthome' : 'guest');
-  }
-
   // Bill settings (payer/tax/service/GST/tip) fire on every keystroke
   // locally (see onBillTaxFieldsChange etc. below) — pushing to Supabase
   // on every keystroke would be both chatty and, if followed by a
@@ -2674,7 +2615,6 @@
         p_discount_exact: d.discountExact
       });
       if (error) console.error('Could not save bill settings to Supabase', error);
-      else await syncTripLinkedBillExpense(d);
     }, 600);
   }
 
@@ -3677,6 +3617,53 @@
 
   const DASHBOARD_EXPENSE_LIMIT = 5;
 
+  // "Today"/"Yesterday" for the current/previous calendar day, else a
+  // short weekday+date (with year only if it isn't the current year) —
+  // dateStr is the plain 'YYYY-MM-DD' expense_date value.
+  function formatExpenseDateHeading(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+    if (d.getTime() === today.getTime()) return 'Today';
+    if (d.getTime() === yesterday.getTime()) return 'Yesterday';
+    const opts = { weekday: 'short', month: 'short', day: 'numeric' };
+    if (d.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
+    return d.toLocaleDateString(undefined, opts);
+  }
+
+  // Groups a list of expenses into date-heading sections, newest date
+  // first — 'YYYY-MM-DD' string keys sort correctly with a plain
+  // descending string compare, no date parsing needed. Expenses within
+  // a date keep whatever order they arrived in (newest-added first,
+  // same as the rest of the list).
+  function groupExpensesByDate(items) {
+    const order = [];
+    const byDate = new Map();
+    // Older local-only demo seed rows predate this field — treat those
+    // as today's date rather than showing an "Invalid Date" heading.
+    const fallback = new Date().toISOString().slice(0, 10);
+    items.forEach(e => {
+      const key = e.expenseDate || fallback;
+      if (!byDate.has(key)) { byDate.set(key, []); order.push(key); }
+      byDate.get(key).push(e);
+    });
+    order.sort((a, b) => b.localeCompare(a));
+    return order.map(key => ({ dateKey: key, items: byDate.get(key) }));
+  }
+
+  // Small overlapping avatar stack for everyone included in an
+  // expense's split — capped at 4 with a "+N" overflow badge, so a
+  // large group doesn't blow out the row.
+  function renderExpenseMates(splits) {
+    const names = (splits || []).map(s => s.member).filter(Boolean);
+    if (!names.length) return '';
+    const shown = names.slice(0, 4);
+    const overflow = names.length - shown.length;
+    const avatars = shown.map(m => `<div class="mate-avatar" title="${escapeAttr(m)}">${escapeAttr(m[0] || '?').toUpperCase()}</div>`).join('');
+    const overflowBadge = overflow > 0 ? `<div class="mate-avatar overflow" title="${shown.length} more">+${overflow}</div>` : '';
+    return `<div class="expense-mates">${avatars}${overflowBadge}</div>`;
+  }
+
   function renderExpenseItems(containerId, limit) {
     const list = document.getElementById(containerId);
     if (!list) return;
@@ -3687,77 +3674,32 @@
       return;
     }
     const home = t.currencies.home;
-    list.innerHTML = items.map(e => {
-      // An expense created via "Add a Bill" mirrors a trip-linked bill's
-      // total — shown as one collapsed row here (itemized detail and
-      // per-person owed amounts live in the bill's own dashboard, one
-      // tap away) rather than duplicating that whole breakdown inline.
-      const linkedBill = e.linkedBillId ? (t.bills || []).find(b => b.id === e.linkedBillId) : null;
-      if (linkedBill) {
+    const groups = groupExpensesByDate(items);
+    list.innerHTML = groups.map(g => `
+      <p class="expense-date-heading">${escapeAttr(formatExpenseDateHeading(g.dateKey))}</p>
+      ${g.items.map(e => {
+        const meta = CATEGORY_META[e.category] || CATEGORY_META.other;
+        const showHomeEquivalent = e.currency !== home;
         return `
-          <div class="expense-item" style="cursor:pointer;" onclick="openTripBillFromExpense('${linkedBill.id}')">
-            <div class="expense-icon">${svgIcon('receipt', 17)}</div>
+          <div class="expense-item">
+            <div class="expense-icon">${svgIcon(meta.icon, 17)}</div>
             <div style="flex:1; min-width:0;">
               <p class="expense-title">${e.description}</p>
-              <p class="expense-sub">Bill · Paid by ${e.paidBy}</p>
+              <p class="expense-sub">Paid by ${e.paidBy} · ${e.splitLabel}</p>
               ${e.note ? `<p class="item-note-text">${escapeAttr(e.note)}</p>` : ''}
             </div>
+            ${renderExpenseMates(e.splits)}
             <div style="text-align:right;">
               <p class="expense-amount">${formatMoney(e.amount, e.currency)}</p>
-              ${e.currency !== home ? `<p class="expense-amount-sub">${formatMoney(convertAmount(e.amount, e.currency, home), home)}</p>` : ''}
+              ${showHomeEquivalent ? `<p class="expense-amount-sub">${formatMoney(convertAmount(e.amount, e.currency, home), home)}</p>` : ''}
             </div>
-            <i class="fa-solid fa-chevron-right" style="font-size:13px; color:var(--text-tertiary); flex-shrink:0;"></i>
+            ${e.receiptPath ? `<button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="viewExpenseReceipt('${e.id}')" title="View receipt"><i class="fa-solid fa-paperclip" style="font-size:13px;"></i></button>` : ''}
+            <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="editExpense('${e.id}')" title="Edit expense">${svgIcon('pen', 13)}</button>
+            <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="deleteExpense('${e.id}')" title="Delete expense">${svgIcon('trash', 13)}</button>
           </div>
         `;
-      }
-
-      const meta = CATEGORY_META[e.category] || CATEGORY_META.other;
-      const showHomeEquivalent = e.currency !== home;
-      return `
-        <div class="expense-item">
-          <div class="expense-icon">${svgIcon(meta.icon, 17)}</div>
-          <div style="flex:1; min-width:0;">
-            <p class="expense-title">${e.description}</p>
-            <p class="expense-sub">Paid by ${e.paidBy} · ${e.splitLabel}</p>
-            ${e.note ? `<p class="item-note-text">${escapeAttr(e.note)}</p>` : ''}
-          </div>
-          <div style="text-align:right;">
-            <p class="expense-amount">${formatMoney(e.amount, e.currency)}</p>
-            ${showHomeEquivalent ? `<p class="expense-amount-sub">${formatMoney(convertAmount(e.amount, e.currency, home), home)}</p>` : ''}
-          </div>
-          ${e.receiptPath ? `<button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="viewExpenseReceipt('${e.id}')" title="View receipt"><i class="fa-solid fa-paperclip" style="font-size:13px;"></i></button>` : ''}
-          <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="editExpense('${e.id}')" title="Edit expense">${svgIcon('pen', 13)}</button>
-          <button class="icon-btn" style="width:28px; height:28px; flex-shrink:0;" onclick="deleteExpense('${e.id}')" title="Delete expense">${svgIcon('trash', 13)}</button>
-        </div>
-      `;
-    }).join('');
-  }
-
-  // Opens a trip-linked bill's own itemized Bill Split dashboard —
-  // tapping a bill-backed row in the trip's expense list, per the "tap
-  // inside to see the full bill items and payable amount per person"
-  // design. Re-fetches fresh (rather than trusting whatever's cached in
-  // t.bills) so item edits made elsewhere are reflected immediately.
-  async function openTripBillFromExpense(billId) {
-    const t = currentTrip();
-    const billMeta = (t.bills || []).find(b => b.id === billId);
-    if (!billMeta || !billMeta.shareToken) {
-      alert('Could not find this bill — try reloading the trip.');
-      return;
-    }
-    const { data, error } = await sb.rpc('get_bill_by_token', { p_token: billMeta.shareToken });
-    if (error) {
-      console.error('Could not load the linked bill', error);
-      alert('Could not open this bill — check your connection and try again.\n\n' + error.message);
-      return;
-    }
-    const bill = window.allBills[billId] || { id: billId, link: billShareLink(billMeta.shareToken), shareToken: billMeta.shareToken, isGuest: false };
-    bill.tripId = t.id;
-    bill.tripToken = t.shareToken;
-    applySupabaseBillData(bill, data);
-    window.allBills[billId] = bill;
-    window.currentBillId = billId;
-    go('billsplitdashboard');
+      }).join('')}
+    `).join('');
   }
 
   // Expense ids are strings from onclick either way (a UUID for
@@ -3849,9 +3791,11 @@
     const paidBy = document.getElementById('expPaidBy');
     renderExpensePaidByOptions();
     const noteInput = document.getElementById('expNote');
+    const dateInput = document.getElementById('expDate');
     if (desc) desc.value = '';
     if (amt) amt.value = '';
     if (noteInput) noteInput.value = '';
+    if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
     if (cur) cur.value = t.currencies.home;
     if (paidBy) paidBy.value = t.mates[0];
     selectedCategory = 'food';
@@ -4111,6 +4055,7 @@
     const description = (document.getElementById('expDescription').value || '').trim();
     const amount = parseFloat(document.getElementById('expAmount').value) || 0;
     const note = (document.getElementById('expNote').value || '').trim() || null;
+    const expenseDate = document.getElementById('expDate').value || new Date().toISOString().slice(0, 10);
     const currency = document.getElementById('expCurrency').value;
     const paidBy = document.getElementById('expPaidBy').value;
 
@@ -4170,7 +4115,8 @@
         // untouched existing receipt alone is update_expense_by_token's
         // job via p_clear_receipt below, not something this field does.
         p_receipt_path: window.currentExpenseReceiptPath || null,
-        p_note: note
+        p_note: note,
+        p_expense_date: expenseDate
       };
       // add_expense_by_token has no p_clear_receipt param (nothing to
       // clear on a brand-new expense), so this only gets added for edits.
@@ -4209,7 +4155,7 @@
       if (idx !== -1) {
         t.expenses[idx] = {
           ...t.expenses[idx],
-          description, category: selectedCategory, amount, currency, paidBy, splitLabel, splits, receiptPath, note
+          description, category: selectedCategory, amount, currency, paidBy, splitLabel, splits, receiptPath, note, expenseDate
         };
       }
       window.editingExpenseId = null;
@@ -4224,6 +4170,7 @@
         splitLabel,
         receiptPath,
         note,
+        expenseDate,
         sub: '',
         splits
       });
@@ -4242,59 +4189,6 @@
     go('addexpense');
   }
 
-  // ---- Open Add a Bill (trip-linked Bill Split creation) ----
-  function openAddTripBill() {
-    go('tripbillcreate');
-  }
-
-  // Creates a trip-linked bill (create_trip_bill_by_token — see migration
-  // 0020) and opens straight into its normal Bill Split dashboard. Its
-  // members are auto-populated from this trip's own mates server-side,
-  // so unlike createBillSplit() there's no "who's splitting this" step
-  // here at all. Only meaningful for Supabase-backed trips (share_token
-  // required) — Add a Bill isn't offered for local-only demo trips.
-  async function createTripBill() {
-    const t = currentTrip();
-    if (!t.shareToken) {
-      alert('Add a Bill needs this trip to be saved online first.');
-      return;
-    }
-    const nameInput = document.getElementById('tripBillNameInput');
-    const name = (nameInput && nameInput.value.trim()) || 'Bill';
-    const currency = document.getElementById('tripBillCurrencySelect').value;
-    const paidBy = document.getElementById('tripBillPaidBySelect').value;
-    const payerTripMemberId = (t.memberIds && t.memberIds[paidBy]) || null;
-
-    const btn = document.getElementById('tripBillCreateBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
-
-    const { data, error } = await sb.rpc('create_trip_bill_by_token', {
-      p_trip_token: t.shareToken, p_name: name, p_currency: currency,
-      p_payer_trip_member_id: payerTripMemberId
-    });
-
-    if (error) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Create Bill'; }
-      console.error('Could not create trip-linked bill', error);
-      alert('Could not create the bill — check your connection and try again.\n\n' + error.message);
-      return;
-    }
-
-    const bill = { id: data.bill_id, link: billShareLink(data.share_token), shareToken: data.share_token, isGuest: false, tripId: t.id, tripToken: t.shareToken };
-    const { data: fullData, error: fetchErr } = await sb.rpc('get_bill_by_token', { p_token: data.share_token });
-    if (fetchErr) {
-      console.error('Bill was created but could not be re-fetched', fetchErr);
-    } else {
-      applySupabaseBillData(bill, fullData);
-    }
-    window.allBills[bill.id] = bill;
-    window.currentBillId = bill.id;
-    touchBill(bill.id);
-
-    if (btn) { btn.disabled = false; btn.textContent = 'Create Bill'; }
-    go('billsplitdashboard');
-  }
-
   // ---- Open Add Expense pre-filled with an existing expense ----
   function editExpense(id) {
     window.editingExpenseId = id;
@@ -4308,6 +4202,7 @@
     document.getElementById('expDescription').value = e.description;
     document.getElementById('expAmount').value = e.amount;
     document.getElementById('expNote').value = e.note || '';
+    document.getElementById('expDate').value = e.expenseDate || new Date().toISOString().slice(0, 10);
     document.getElementById('expCurrency').value = e.currency;
     document.getElementById('expPaidBy').value = e.paidBy;
     window.currentExpenseReceiptPath = e.receiptPath || null;
@@ -4583,11 +4478,42 @@
   // Every amount is converted to the trip's home currency
   // before being totaled, so category totals combine expenses
   // entered in different currencies correctly.
-  function getCategoryTotals() {
+  // Applies the Stats screen's own category/date filters — reads
+  // straight off the two select elements so callers never have to pass
+  // the filter state around. Date filtering compares against
+  // expense_date (the date the expense actually happened), same field
+  // the dashboard's date-grouped view uses, not created_at.
+  function getFilteredStatsExpenses() {
+    const t = currentTrip();
+    const categorySel = document.getElementById('statsCategoryFilter');
+    const dateSel = document.getElementById('statsDateFilter');
+    const category = categorySel ? categorySel.value : 'all';
+    const dateFilter = dateSel ? dateSel.value : 'all';
+
+    let fromDate = null;
+    if (dateFilter !== 'all') {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (dateFilter === 'today') fromDate = today;
+      else if (dateFilter === '7' || dateFilter === '30') {
+        fromDate = new Date(today); fromDate.setDate(fromDate.getDate() - (parseInt(dateFilter, 10) - 1));
+      } else if (dateFilter === 'month') {
+        fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      }
+    }
+    const fromKey = fromDate ? fromDate.toISOString().slice(0, 10) : null;
+
+    return t.expenses.filter(e => {
+      if (category !== 'all' && (e.category || 'other') !== category) return false;
+      if (fromKey && (e.expenseDate || '') < fromKey) return false;
+      return true;
+    });
+  }
+
+  function getCategoryTotals(expenses) {
     const t = currentTrip();
     const home = t.currencies.home;
     const totals = {};
-    t.expenses.forEach(e => {
+    expenses.forEach(e => {
       const key = e.category || 'other';
       totals[key] = (totals[key] || 0) + convertAmount(e.amount, e.currency, home);
     });
@@ -4600,19 +4526,38 @@
     })).sort((a, b) => b.amount - a.amount);
   }
 
+  // Rebuilds the category filter's own option list from whatever
+  // categories actually appear in the trip (not a fixed list), keeping
+  // whatever was already selected — so switching trips or adding an
+  // expense in a new category doesn't reset the filter underneath you
+  // unless the previously-selected category no longer exists.
+  function populateStatsCategoryFilter() {
+    const sel = document.getElementById('statsCategoryFilter');
+    if (!sel) return;
+    const t = currentTrip();
+    const present = Array.from(new Set(t.expenses.map(e => e.category || 'other')));
+    const previous = sel.value || 'all';
+    sel.innerHTML = ['<option value="all">All categories</option>']
+      .concat(present.map(id => `<option value="${id}">${(CATEGORY_META[id] || CATEGORY_META.other).label}</option>`))
+      .join('');
+    sel.value = present.includes(previous) || previous === 'all' ? previous : 'all';
+  }
+
   function renderCategoryStats() {
-    const categoryTotals = getCategoryTotals();
+    populateStatsCategoryFilter();
+    const filtered = getFilteredStatsExpenses();
+    const categoryTotals = getCategoryTotals(filtered);
     const total = categoryTotals.reduce((sum, c) => sum + c.amount, 0);
     const t = currentTrip();
     const home = t.currencies.home;
 
     document.getElementById('statsTotalSpent').textContent = formatMoney(total, home);
     document.getElementById('statsTotalSub').textContent =
-      `Across ${t.expenses.length} expense${t.expenses.length === 1 ? '' : 's'} · ${t.mates.length} members`;
+      `Across ${filtered.length} expense${filtered.length === 1 ? '' : 's'} · ${t.mates.length} members`;
 
     const list = document.getElementById('categoryStatsList');
     if (!categoryTotals.length) {
-      list.innerHTML = '<p class="guest-trips-empty">No expenses yet.</p>';
+      list.innerHTML = '<p class="guest-trips-empty">No expenses match these filters.</p>';
       return;
     }
     list.innerHTML = categoryTotals.map(c => {
@@ -4629,23 +4574,177 @@
     }).join('');
   }
 
-  function exportCSV() {
+  // Wraps a CSV field in quotes (doubling any embedded quotes) whenever
+  // it contains a comma, quote, or newline — descriptions/notes are
+  // free text and can easily contain commas.
+  function csvField(v) {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  // Trip dashboard export — the transaction list plus a separate Settle
+  // Up section (who owes whom, in the trip's home currency) so the CSV
+  // is a complete standalone record, not just a raw expense dump.
+  function exportTripCSV() {
     const t = currentTrip();
     const home = t.currencies.home;
     const rows = [['Date', 'Description', 'Category', 'Paid By', 'Amount', 'Currency', `Amount (${home})`]];
-    t.expenses.forEach(e => {
+    const sorted = [...t.expenses].sort((a, b) => (b.expenseDate || '').localeCompare(a.expenseDate || ''));
+    sorted.forEach(e => {
       const label = (CATEGORY_META[e.category] || CATEGORY_META.other).label;
       const homeAmount = convertAmount(e.amount, e.currency, home);
-      rows.push(['', e.description, label, e.paidBy, e.amount.toFixed(2), e.currency, homeAmount.toFixed(2)]);
+      rows.push([e.expenseDate || '', e.description, label, e.paidBy, e.amount.toFixed(2), e.currency, homeAmount.toFixed(2)]);
     });
-    const csv = rows.map(r => r.join(',')).join('\n');
+
+    rows.push([]);
+    rows.push(['Settle Up']);
+    rows.push(['From', 'To', `Amount (${home})`]);
+    const suggestions = getEffectiveSuggestions();
+    if (!suggestions.length) {
+      rows.push(['Everyone is settled up.']);
+    } else {
+      suggestions.forEach(s => rows.push([s.from, s.to, s.amount.toFixed(2)]));
+    }
+
+    const csv = rows.map(r => r.map(csvField).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'settlr-export.csv';
+    a.download = (t.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'settlr-trip') + '.csv';
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // Trip dashboard "Save as Image" — same canvas-drawing approach as
+  // exportBillScreenshot, with a Settle Up section up top (the one
+  // number people actually need) followed by the date-grouped
+  // transaction list, so the image is a complete standalone record.
+  async function exportTripScreenshot() {
+    const t = currentTrip();
+    const home = t.currencies.home;
+    const suggestions = getEffectiveSuggestions();
+    const groups = groupExpensesByDate(t.expenses);
+    const totalSpent = t.expenses.reduce((sum, e) => sum + convertAmount(e.amount, e.currency, home), 0);
+
+    const lineHeight = 26;
+    const width = 480;
+    const settleRows = Math.max(suggestions.length, 1);
+    const settleHeight = lineHeight + settleRows * lineHeight;
+    const expenseContentHeight = groups.length
+      ? groups.reduce((s, g) => s + lineHeight + g.items.length * lineHeight, 0)
+      : lineHeight;
+    const footerHeight = 46;
+    const height = 100 + 24 + settleHeight + 28 + expenseContentHeight + 28 + lineHeight + 34 + footerHeight;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(t.name, 24, 40);
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.fillText(`${t.mates.length} member${t.mates.length === 1 ? '' : 's'} · ${home}`, 24, 62);
+
+    let y = 100;
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
+    y += 24;
+
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText('Settle Up', 24, y);
+    y += lineHeight;
+    ctx.font = '13px sans-serif';
+    if (!suggestions.length) {
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('Everyone is settled up.', 24, y);
+      y += lineHeight;
+    } else {
+      suggestions.forEach(s => {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(`${s.from} owes ${s.to}`, 24, y);
+        ctx.textAlign = 'right';
+        ctx.fillText(formatMoney(s.amount, home), width - 24, y);
+        ctx.textAlign = 'left';
+        y += lineHeight;
+      });
+    }
+
+    y += 4;
+    ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
+    y += 24;
+
+    if (!groups.length) {
+      ctx.font = '13px sans-serif';
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('No expenses yet.', 24, y);
+      y += lineHeight;
+    } else {
+      groups.forEach(g => {
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(formatExpenseDateHeading(g.dateKey), 24, y);
+        y += lineHeight;
+
+        ctx.font = '13px sans-serif';
+        g.items.forEach(e => {
+          ctx.fillStyle = '#64748b';
+          ctx.fillText(e.description, 40, y);
+          ctx.textAlign = 'right';
+          ctx.fillText(formatMoney(e.amount, e.currency), width - 24, y);
+          ctx.textAlign = 'left';
+          y += lineHeight;
+        });
+      });
+    }
+
+    y += 4;
+    ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(width - 24, y); ctx.stroke();
+    y += 24;
+
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText('Total Spent', 24, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(formatMoney(totalSpent, home), width - 24, y);
+    ctx.textAlign = 'left';
+    y += 34;
+
+    // Footer credit, centered at the bottom of the image.
+    y = height - footerHeight / 2 - 4;
+    ctx.beginPath(); ctx.moveTo(24, y - 18); ctx.lineTo(width - 24, y - 18); ctx.stroke();
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'center';
+    ctx.fillText('Generated by Settlr', width / 2, y);
+    ctx.textAlign = 'left';
+
+    const fileName = (t.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'settlr-trip') + '.png';
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const file = blob && new File([blob], fileName, { type: 'image/png' });
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: t.name });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return; // user cancelled the share sheet
+        console.warn('Share failed, falling back to download', err);
+      }
+    }
+
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
   }
 
   // ══════════════════════════════════════════════════════
@@ -4984,10 +5083,7 @@
   function renderAccountBillsList() {
     const list = document.getElementById('accountBillsList');
     if (!list) return;
-    // A trip-linked bill (created via a trip's "Add a Bill" button) only
-    // ever exists inside that trip — it shouldn't also show up as a
-    // separate standalone entry here.
-    const bills = Object.values(window.allBills).filter(b => !b.isGuest && !b.isDemo && !b.tripId).sort((a, b) => b.updatedAt - a.updatedAt);
+    const bills = Object.values(window.allBills).filter(b => !b.isGuest && !b.isDemo).sort((a, b) => b.updatedAt - a.updatedAt);
     if (!bills.length) {
       list.innerHTML = '<p class="guest-trips-empty">No bill splits yet — split a receipt above.</p>';
       return;
@@ -5027,12 +5123,7 @@
   async function renderGuestBillsList() {
     const list = document.getElementById('guestBillsList');
     if (!list) return;
-    // Trip-linked bills are never saved to guest local storage in the
-    // first place (touchBill only persists when isGuest is true, and a
-    // trip-linked bill is always isGuest: false) — the tripId filter
-    // here is just a defensive belt-and-suspenders match for
-    // renderAccountBillsList's, in case that ever changes.
-    const records = (await getGuestTrips()).filter(r => r.type === 'bill' && r.data && !r.data.tripId);
+    const records = (await getGuestTrips()).filter(r => r.type === 'bill' && r.data);
     records.sort((a, b) => b.updatedAt - a.updatedAt);
     records.forEach(r => {
       window.allBills[r.id] = { ...cloneData(r.data), id: r.id, isGuest: true, updatedAt: r.updatedAt };
@@ -5141,9 +5232,12 @@
       // to show how much was actually taken off, in the bill's
       // currency rather than as an abstract percent alone.
       const discountValue = discountPct > 0 ? (amount / (1 - discountPct / 100)) - amount : 0;
-      const subLabel = row.isGroup
-        ? `Shared by ${row.members.map(m => m.owedBy).join(', ')}`
-        : `Payable by ${first.owedBy}`;
+      // Payable person is shown as their avatar icon rather than typed
+      // out — reuses the same mate-avatar stack as the trip dashboard's
+      // "who's in this expense" row, just capped lower since bill items
+      // rarely have more than a couple of people on a single row.
+      const subLabel = row.isGroup ? 'Shared by' : 'Payable by';
+      const subAvatars = renderExpenseMates(row.members.map(m => ({ member: m.owedBy })));
       const avatar = row.isGroup
         ? `<div class="mate-avatar" style="flex-shrink:0;">${svgIcon('users', 14)}</div>`
         : `<div class="mate-avatar" style="flex-shrink:0;">${first.owedBy[0]}</div>`;
@@ -5153,7 +5247,10 @@
         <div style="flex:1; min-width:0;">
           <p class="expense-title">${first.description}</p>
           ${first.note ? `<p class="item-note-text">${escapeAttr(first.note)}</p>` : ''}
-          <p class="expense-sub">${subLabel}</p>
+          <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+            <span class="expense-sub">${subLabel}</span>
+            ${subAvatars}
+          </div>
         </div>
         <div style="text-align:right;">
           ${discountPct > 0 ? `<p class="item-discount-note">&minus;${formatMoney(discountValue, d.currency)} (${discountPct}%)</p>` : ''}
@@ -5193,7 +5290,6 @@
         alert('Could not delete this item — check your connection and try again.\n\n' + delErr.message);
       }
       await reloadBillFromSupabase(d.id);
-      await syncTripLinkedBillExpense(d);
       renderBillItems();
       recalcBillTotals();
       return;
@@ -5424,7 +5520,6 @@
 
       window.editingBillItemId = null;
       await reloadBillFromSupabase(d.id);
-      await syncTripLinkedBillExpense(d);
       go('billsplitdashboard');
       return;
     }
@@ -5723,7 +5818,6 @@
     window.scannedItems = null;
     window.scannedReceiptMeta = null;
     await reloadBillFromSupabase(d.id);
-    await syncTripLinkedBillExpense(d);
     go('billsplitdashboard');
   }
 
@@ -5834,7 +5928,8 @@
     const total = netSubtotal + serviceAmt + tipAmt + gstAmt;
 
     const perPerson = {};
-    d.mates.forEach(m => { perPerson[m] = 0; });
+    const perPersonExclTax = {};
+    d.mates.forEach(m => { perPerson[m] = 0; perPersonExclTax[m] = 0; });
     d.items.forEach(it => {
       const itemDiscount = subtotal > 0 ? (it.amount / subtotal) * discountAmt : 0;
       const itemNet = it.amount - itemDiscount;
@@ -5843,68 +5938,20 @@
       const itemGst = d.taxIncluded ? 0 : itemGstBase * (d.gstPct || 0) / 100;
       const itemTip = (!d.taxIncluded && subtotal > 0) ? (it.amount / subtotal) * tipAmt : 0;
       perPerson[it.owedBy] = (perPerson[it.owedBy] || 0) + itemNet + itemService + itemGst + itemTip;
+      // "Without tax" here means net of discount but before service/GST/
+      // tip — i.e. what the person's share of the receipt's item prices
+      // actually was, discount already applied since a discount isn't a
+      // tax. When tax is already baked into the item prices (taxIncluded),
+      // this equals the incl-tax figure, so the two numbers legitimately
+      // match — that's expected, not a bug.
+      perPersonExclTax[it.owedBy] = (perPersonExclTax[it.owedBy] || 0) + itemNet;
     });
 
-    return { subtotal, discountAmt, netSubtotal, serviceAmt, tipAmt, gstAmt, total, perPerson };
+    return { subtotal, discountAmt, netSubtotal, serviceAmt, tipAmt, gstAmt, total, perPerson, perPersonExclTax };
   }
 
   function computeBillTotals() {
     return computeBillTotalsFor(currentBill());
-  }
-
-  // ---- Trip-linked bills: mirror this bill's total into the trip's
-  // own expenses table, reusing add_expense_by_token/update_expense_by_token
-  // unchanged with split_type='exact' — see the design note atop
-  // migration 0020 for why this is safe (Settle Up, balances, and CSV
-  // export never need to know an expense is bill-backed). No-ops for a
-  // standalone Split a Bill (d.tripId unset) or before the bill has a
-  // payer/any items yet (nothing meaningful to mirror). Called after
-  // every item add/edit/delete and every tax/tip/discount/payer change
-  // on a trip-linked bill. ----
-  async function syncTripLinkedBillExpense(d) {
-    if (!d.tripId || !d.tripToken) return;
-    const payerTripMemberId = d.memberTripMemberIds && d.memberTripMemberIds[d.payer];
-    if (!payerTripMemberId) return;
-
-    const totals = computeBillTotalsFor(d);
-    const total = Math.round(totals.total * 100) / 100;
-    if (total <= 0) return; // an empty bill has nothing to mirror yet
-
-    const owingMembers = d.mates.filter(m => Math.round((totals.perPerson[m] || 0) * 100) / 100 > 0 && d.memberTripMemberIds[m]);
-    if (!owingMembers.length) return;
-
-    const splits = owingMembers.map(m => ({
-      trip_member_id: d.memberTripMemberIds[m],
-      share_value: 0,
-      owed_amount: Math.round((totals.perPerson[m] || 0) * 100) / 100
-    }));
-    // Keep the split sum exactly equal to the total despite per-person
-    // rounding (update_expense_by_token's _recompute_expense_splits
-    // rejects an exact split more than a cent off) — same trailing-
-    // remainder trick used everywhere else in this app.
-    const splitSum = splits.reduce((s, x) => s + x.owed_amount, 0);
-    const diff = Math.round((total - splitSum) * 100) / 100;
-    if (diff !== 0) splits[splits.length - 1].owed_amount = Math.round((splits[splits.length - 1].owed_amount + diff) * 100) / 100;
-
-    const rpcArgs = {
-      p_token: d.tripToken, p_description: d.name, p_category: 'other',
-      p_amount: total, p_currency: d.currency, p_exchange_rate: 1,
-      p_paid_by: payerTripMemberId, p_split_type: 'exact', p_splits: splits
-    };
-
-    if (d.linkedExpenseId) {
-      const { error } = await sb.rpc('update_expense_by_token', { ...rpcArgs, p_expense_id: d.linkedExpenseId });
-      if (error) console.error('Could not sync bill total to its trip expense', error);
-      return;
-    }
-
-    const { data: expenseId, error } = await sb.rpc('add_expense_by_token', rpcArgs);
-    if (error) { console.error('Could not create the trip expense mirroring this bill', error); return; }
-    d.linkedExpenseId = expenseId;
-    const { error: linkErr } = await sb.rpc('link_trip_bill_expense', {
-      p_trip_token: d.tripToken, p_bill_id: d.id, p_expense_id: expenseId
-    });
-    if (linkErr) console.error('Could not link the new trip expense back to this bill', linkErr);
   }
 
   function recalcBillTotals() {
@@ -5933,13 +5980,22 @@
     } else {
       itemsList.innerHTML = d.mates.filter(m => d.items.some(it => it.owedBy === m)).map(m => {
         const mineItems = d.items.filter(it => it.owedBy === m);
-        const subtotal = mineItems.reduce((s, it) => s + it.amount, 0);
+        const inclTax = totals.perPerson[m] || 0;
+        const exclTax = totals.perPersonExclTax[m] || 0;
+        // Only worth showing the excl-tax bracket when it actually
+        // differs from the incl-tax figure — when prices already include
+        // tax, or there's no service/GST/tip on this bill, the two are
+        // the same number and the note would just be noise.
+        const showExclTax = !d.taxIncluded && Math.abs(inclTax - exclTax) > 0.005;
         return `
           <div class="settle-person-group" style="margin-bottom:14px;">
             <div class="expense-item" style="padding-bottom:4px;">
               <div class="mate-avatar" style="flex-shrink:0;">${m[0].toUpperCase()}</div>
-              <p class="expense-title" style="flex:1;">${m}</p>
-              <p class="expense-amount">${formatMoney(subtotal, d.currency)}</p>
+              <p class="expense-title" style="flex:1;"><b>${m}</b></p>
+              <div style="text-align:right;">
+                <span class="settle-amount-badge">${formatMoney(inclTax, d.currency)}</span>
+                ${showExclTax ? `<p class="expense-amount-sub">(${formatMoney(exclTax, d.currency)} excl. tax and GST)</p>` : ''}
+              </div>
             </div>
             ${mineItems.map(it => `
               <div class="expense-item" style="padding-left:36px;">
@@ -6026,11 +6082,20 @@
     ];
 
     const lineHeight = 26;
+    const subLineHeight = 16;
     const width = 480;
     const payableRows = Math.max(others.length, 1);
     const payableHeight = lineHeight + payableRows * lineHeight;
+    // Same "only show the excl-tax bracket when it actually differs"
+    // rule as the on-screen breakdown, so the image's height calc and
+    // its actual drawing stay in sync.
+    const groupShowsExclTax = g => {
+      const inclTax = totals.perPerson[g.name] || 0;
+      const exclTax = totals.perPersonExclTax[g.name] || 0;
+      return !d.taxIncluded && Math.abs(inclTax - exclTax) > 0.005;
+    };
     const itemsHeight = groups.length
-      ? groups.reduce((s, g) => s + lineHeight + g.items.length * lineHeight, 0)
+      ? groups.reduce((s, g) => s + lineHeight + (groupShowsExclTax(g) ? subLineHeight : 0) + g.items.length * lineHeight, 0)
       : lineHeight;
     const breakdownRows = breakdownRowsData.length + 1;
     const footerHeight = 46;
@@ -6098,14 +6163,25 @@
       y += lineHeight;
     } else {
       groups.forEach(g => {
-        const subtotal = g.items.reduce((s, it) => s + it.amount, 0);
+        const inclTax = totals.perPerson[g.name] || 0;
+        const exclTax = totals.perPersonExclTax[g.name] || 0;
+        const showExclTax = groupShowsExclTax(g);
         ctx.font = 'bold 13px sans-serif';
         ctx.fillStyle = '#0f172a';
         ctx.fillText(g.name, 24, y);
         ctx.textAlign = 'right';
-        ctx.fillText(formatMoney(subtotal, d.currency), width - 24, y);
+        ctx.fillText(formatMoney(inclTax, d.currency), width - 24, y);
         ctx.textAlign = 'left';
         y += lineHeight;
+
+        if (showExclTax) {
+          ctx.font = '10px sans-serif';
+          ctx.fillStyle = '#94a3b8';
+          ctx.textAlign = 'right';
+          ctx.fillText(`(${formatMoney(exclTax, d.currency)} excl. tax and GST)`, width - 24, y);
+          ctx.textAlign = 'left';
+          y += subLineHeight;
+        }
 
         ctx.font = '13px sans-serif';
         g.items.forEach(it => {
