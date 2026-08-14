@@ -4547,13 +4547,36 @@
     });
   }
 
+  // Reads the mate filter directly (same pattern as getFilteredStatsExpenses)
+  // so every stats calculation agrees on who's selected without having
+  // to thread it through every function call.
+  function getStatsMateFilter() {
+    const sel = document.getElementById('statsMateFilter');
+    return sel ? sel.value : 'all';
+  }
+
+  // What an expense actually contributes to the stats totals. With no
+  // mate filter, that's the whole expense (converted to home currency)
+  // — same as before. With a mate selected, it's *only that person's
+  // owed share* of the expense, not the full amount — someone who just
+  // paid for the group but isn't in the split themselves contributes
+  // $0 here, and someone who split 1/4 of a $100 dinner contributes
+  // $25, not $100. This is what "the portion of the cost they're
+  // sharing" means, as opposed to "every transaction they're involved in."
+  function statsAmountFor(e, mate, home) {
+    if (mate === 'all') return convertAmount(e.amount, e.currency, home);
+    const share = (e.splits || []).filter(s => s.member === mate).reduce((sum, s) => sum + s.share, 0);
+    return convertAmount(share, e.currency, home);
+  }
+
   function getCategoryTotals(expenses) {
     const t = currentTrip();
     const home = t.currencies.home;
+    const mate = getStatsMateFilter();
     const totals = {};
     expenses.forEach(e => {
       const key = e.category || 'other';
-      totals[key] = (totals[key] || 0) + convertAmount(e.amount, e.currency, home);
+      totals[key] = (totals[key] || 0) + statsAmountFor(e, mate, home);
     });
     return Object.keys(totals).map(id => ({
       id,
@@ -4583,10 +4606,11 @@
   function getDateTotals(expenses) {
     const t = currentTrip();
     const home = t.currencies.home;
+    const mate = getStatsMateFilter();
     const totals = {};
     expenses.forEach(e => {
       const key = e.expenseDate || 'unknown';
-      totals[key] = (totals[key] || 0) + convertAmount(e.amount, e.currency, home);
+      totals[key] = (totals[key] || 0) + statsAmountFor(e, mate, home);
     });
     return Object.keys(totals).sort((a, b) => b.localeCompare(a)).map(key => ({
       key,

@@ -2,6 +2,11 @@
 
 All notable changes to Settlr, newest first. Dates reflect when each milestone was built.
 
+## 2026-08-14 — Fix: Stats mate filter summed full expenses instead of the person's share
+
+- **Selecting a trip mate in Stats was showing the full amount of every expense they were involved in**, not their actual share of it — someone who just fronted the money for a group dinner (paid it, but wasn't part of the split) was being counted for the whole bill, and someone who split 1/4 of a $100 dinner was showing $100, not $25. Total Spent, By Category, and By Date all inherited this since they're all derived from the same filtered list.
+- Fixed at the source: a new `statsAmountFor(expense, mate, home)` returns the full converted amount when no mate is selected (unchanged), but returns *only that mate's owed share* (summed from `expense.splits`, converted to home currency) once a mate is selected — zero for an expense they only paid but weren't split into. `getCategoryTotals()` and `getDateTotals()` both switched to this helper, so Total Spent (derived from the category totals) and every row in both breakdowns now reflect the same, correct number. Which expenses show up at all is unchanged — still anyone who paid or was in the split — only the *amount attributed* per expense was wrong.
+
 ## 2026-08-13 — Trip dashboard/Stats follow-ups
 
 Frontend-only follow-up to the same-day batch below — no schema changes.
